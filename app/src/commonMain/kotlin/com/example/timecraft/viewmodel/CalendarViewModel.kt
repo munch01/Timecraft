@@ -47,13 +47,18 @@ class CalendarViewModel {
     }
 
     private fun fetchDays() {
-        val userId = try {
-            supabase.auth.currentSessionOrNull()?.user?.id
-        } catch (e: Exception) {
-            null
-        } ?: return
         scope.launch {
             try {
+                // Wait a bit for session to be restored if needed
+                var userId: String? = null
+                for (i in 1..5) {
+                    userId = supabase.auth.currentSessionOrNull()?.user?.id
+                    if (userId != null) break
+                    kotlinx.coroutines.delay(500)
+                }
+                
+                if (userId == null) return@launch
+
                 val results = supabase.from("work_days")
                     .select {
                         filter {

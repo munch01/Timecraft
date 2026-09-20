@@ -68,11 +68,11 @@ kotlin {
 }
 
 android {
-    namespace = "com.example.timecraft"
+    namespace = "com.emeric.timecraft"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.timecraft"
+        applicationId = "com.emeric.timecraft"
         minSdk = 26
         targetSdk = 37
         versionCode = 2

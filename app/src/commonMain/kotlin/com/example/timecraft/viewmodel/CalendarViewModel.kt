@@ -70,16 +70,22 @@ class CalendarViewModel {
         } catch (e: Exception) {
             null
         } ?: return
-        val finalWorkDay = workDay.copy(userId = userId)
+        
+        // Ensure we preserve the ID if we already know it for this date
+        val existingId = workDays[workDay.date]?.id
+        val finalWorkDay = workDay.copy(userId = userId, id = existingId)
         
         workDays = workDays + (finalWorkDay.date to finalWorkDay)
 
         scope.launch {
             try {
-                supabase.from("work_days").upsert(finalWorkDay)
+                // We tell Supabase to update if user_id and date match
+                supabase.from("work_days").upsert(finalWorkDay) {
+                    onConflict = "user_id,date"
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
-                fetchDays() // Refresh on error
+                fetchDays() // Refresh on error to show actual state
             }
         }
     }

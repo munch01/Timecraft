@@ -11,4 +11,4 @@ interface BiometryManager {
     )
 }
 
-expect fun getBiometryManager(): BiometryManager
+expect fun getBiometryManager(): BiometryManager?

@@ -50,14 +50,16 @@ fun AuthScreen(
 
     // Biometric Auto-Auth
     LaunchedEffect(Unit) {
-        if (!isSignUp && biometryManager.canAuthenticate()) {
-            biometryManager.authenticate(
-                title = "Authentification",
-                subtitle = "Utilisez votre empreinte pour vous connecter à TimeCraft",
-                negativeButtonText = "Annuler",
-                onSuccess = { onAuthSuccess() },
-                onError = { platform.showToast(it) }
-            )
+        biometryManager?.let { manager ->
+            if (!isSignUp && manager.canAuthenticate()) {
+                manager.authenticate(
+                    title = "Authentification",
+                    subtitle = "Utilisez votre empreinte pour vous connecter à TimeCraft",
+                    negativeButtonText = "Annuler",
+                    onSuccess = { onAuthSuccess() },
+                    onError = { platform.showToast(it) }
+                )
+            }
         }
     }
 

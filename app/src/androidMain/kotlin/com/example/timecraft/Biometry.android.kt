@@ -47,4 +47,7 @@ class AndroidBiometryManager(private val activity: FragmentActivity) : BiometryM
     }
 }
 
-actual fun getBiometryManager(): BiometryManager = AndroidBiometryManager(currentActivity!!)
+actual fun getBiometryManager(): BiometryManager? {
+    val activity = currentActivity ?: return null
+    return AndroidBiometryManager(activity)
+}

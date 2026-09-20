@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">TimeCraft</string>
+
+    <string name="settings_title">Paramètres</string>
+    <string name="back">Retour</string>
+    <string name="logout">Se déconnecter</string>
+
+    <string name="auth_signup_title">Créer un compte</string>
+    <string name="auth_email_label">Adresse e-mail</string>
+    <string name="auth_password_label">Mot de passe</string>
+    <string name="auth_login_button">Se connecter</string>
+    <string name="auth_signup_button">S\'inscrire</string>
+    <string name="auth_go_to_signup">Pas de compte ? S\'inscrire</string>
+    <string name="auth_go_to_login">Déjà un compte ? Connexion</string>
+
+    <string name="home_title">TimeCraft</string>
+    <string name="home_quit">Quitter</string>
+    <string name="home_kofi">Offrir un café</string>
+
+    <string name="cancel_label">Annuler</string>
+    <string name="delete_label">Supprimer</string>
+    <string name="close_label">Fermer</string>
+</resources>

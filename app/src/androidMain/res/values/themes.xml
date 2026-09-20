@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Thème principal avec transparence pour éviter le flash blanc/gris -->
+    <style name="Theme.Kaptal" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Rend la fenêtre transparente au tout premier démarrage pour laisser place nette à Compose -->
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+    </style>
+</resources>

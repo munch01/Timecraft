@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Ton image de fond en plein écran -->
+    <item android:drawable="@drawable/fond_kaptal_propre" />
+
+    <!-- Ton logo centré par-dessus -->
+    <item
+        android:drawable="@drawable/ic_k_logo"
+        android:gravity="center" />
+</layer-list>

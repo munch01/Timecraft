@@ -14,4 +14,4 @@ class DesktopBiometryManager : BiometryManager {
     }
 }
 
-actual fun getBiometryManager(): BiometryManager = DesktopBiometryManager()
+actual fun getBiometryManager(): BiometryManager? = DesktopBiometryManager()

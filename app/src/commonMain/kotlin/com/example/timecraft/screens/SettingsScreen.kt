@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.example.timecraft.getPlatform
 import com.example.timecraft.network.supabase
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.user.UserUpdateBuilder
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import timecraft.app.generated.resources.Res
@@ -43,7 +44,12 @@ fun SettingsScreen(
 
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var showEmailDialog by remember { mutableStateOf(false) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
     
+    var newEmail by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+
     val availableLanguages = listOf("Français", "English", "Español")
     var selectedLanguage by remember { mutableStateOf("Français") }
 
@@ -112,7 +118,7 @@ fun SettingsScreen(
                             icon = Icons.Default.Email,
                             title = "Adresse e-mail",
                             subtitle = "Modifier votre adresse e-mail",
-                            onClick = { platform.showToast("Fonctionnalité bientôt disponible") }
+                            onClick = { showEmailDialog = true }
                         )
                     }
                 }
@@ -146,19 +152,8 @@ fun SettingsScreen(
                         SettingsClickableItem(
                             icon = Icons.Default.Lock,
                             title = "Mot de passe",
-                            subtitle = "Envoyer un e-mail de réinitialisation",
-                            onClick = {
-                                coroutineScope.launch {
-                                    try {
-                                        currentUser?.email?.let {
-                                            supabase.auth.resetPasswordForEmail(it)
-                                            platform.showToast("E-mail envoyé à $it")
-                                        }
-                                    } catch (e: Exception) {
-                                        platform.showToast("Erreur : ${e.message}")
-                                    }
-                                }
-                            }
+                            subtitle = "Changer votre mot de passe",
+                            onClick = { showPasswordDialog = true }
                         )
                     }
                 }
@@ -257,6 +252,72 @@ fun SettingsScreen(
         }
     }
 
+    if (showEmailDialog) {
+        AlertDialog(
+            onDismissRequest = { showEmailDialog = false },
+            title = { Text("Modifier l'email") },
+            text = {
+                OutlinedTextField(
+                    value = newEmail,
+                    onValueChange = { newEmail = it },
+                    label = { Text("Nouvel email") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    coroutineScope.launch {
+                        try {
+                            supabase.auth.updateUser {
+                                email = newEmail
+                            }
+                            platform.showToast("Lien de confirmation envoyé au nouvel email")
+                            showEmailDialog = false
+                        } catch (e: Exception) {
+                            platform.showToast("Erreur : ${e.message}")
+                        }
+                    }
+                }) { Text("Modifier") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEmailDialog = false }) { Text("Annuler") }
+            }
+        )
+    }
+
+    if (showPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = { showPasswordDialog = false },
+            title = { Text("Modifier le mot de passe") },
+            text = {
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("Nouveau mot de passe") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    coroutineScope.launch {
+                        try {
+                            supabase.auth.updateUser {
+                                password = newPassword
+                            }
+                            platform.showToast("Mot de passe mis à jour")
+                            showPasswordDialog = false
+                        } catch (e: Exception) {
+                            platform.showToast("Erreur : ${e.message}")
+                        }
+                    }
+                }) { Text("Modifier") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPasswordDialog = false }) { Text("Annuler") }
+            }
+        )
+    }
+
     if (showLanguageDialog) {
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
@@ -299,10 +360,15 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         coroutineScope.launch {
-                            // Supabase delete account usually requires user to be logged in
-                            // or handled via an edge function for full cleanup
-                            platform.showToast("Demande de suppression envoyée")
-                            showDeleteAccountDialog = false
+                            try {
+                                // Supabase doesn't have a direct "delete current user" in client SDK easily for security
+                                // Often handled via an Edge Function or Admin API.
+                                // For now, we logout or show a warning.
+                                platform.showToast("Action nécessitant une validation admin")
+                                showDeleteAccountDialog = false
+                            } catch (e: Exception) {
+                                platform.showToast("Erreur : ${e.message}")
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)

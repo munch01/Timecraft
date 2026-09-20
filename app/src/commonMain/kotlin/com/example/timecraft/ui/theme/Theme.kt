@@ -1,7 +1,6 @@
 package com.example.timecraft.ui.theme
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -30,7 +29,7 @@ fun TimeCraftTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography(), // Default for now
+        typography = getTypography(),
         content = content
     )
 }

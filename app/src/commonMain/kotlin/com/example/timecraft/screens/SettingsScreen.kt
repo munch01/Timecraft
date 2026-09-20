@@ -40,12 +40,13 @@ fun SettingsScreen(
     val platform = getPlatform()
     val coroutineScope = rememberCoroutineScope()
     val currentUser = supabase.auth.currentSessionOrNull()?.user
-    val appVersion = "1.0.0-blueprint"
+    val appVersion = "1.0.1"
 
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showEmailDialog by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
     
     var newEmail by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
@@ -204,7 +205,7 @@ fun SettingsScreen(
                             title = "Politique de confidentialité (RGPD)",
                             subtitle = "Gestion et protection de vos données",
                             trailingIcon = Icons.AutoMirrored.Filled.OpenInNew,
-                            onClick = { platform.openUrl("https://munch01.github.io/Timecraft/index.md") }
+                            onClick = { platform.openUrl("https://github.com/munch01/Timecraft/blob/master/PRIVACY_POLICY.md") }
                         )
 
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -213,7 +214,7 @@ fun SettingsScreen(
                             icon = Icons.Default.Info,
                             title = "À propos de TimeCraft",
                             subtitle = "Version $appVersion",
-                            onClick = { }
+                            onClick = { showAboutDialog = true }
                         )
                     }
                 }
@@ -347,6 +348,25 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showLanguageDialog = false }) { Text("Annuler") }
+            }
+        )
+    }
+
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            icon = { Icon(Icons.Default.Info, contentDescription = null) },
+            title = { Text("À propos de TimeCraft") },
+            text = {
+                Column {
+                    Text("Application de gestion de temps de travail.")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Version $appVersion", fontWeight = FontWeight.Bold)
+                    Text("Architecture MVVM avec Jetpack Compose & Supabase.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAboutDialog = false }) { Text("Fermer") }
             }
         )
     }

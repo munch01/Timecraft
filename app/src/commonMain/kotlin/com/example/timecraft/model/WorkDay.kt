@@ -1,6 +1,7 @@
 package com.example.timecraft.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import kotlinx.datetime.LocalDate
 import androidx.compose.ui.graphics.Color
 
@@ -30,9 +31,11 @@ private fun parseColor(colorString: String): Int {
 @Serializable
 data class WorkDay(
     val id: String? = null,
+    @SerialName("user_id")
     val userId: String,
     val date: LocalDate,
     val type: DayType = DayType.WORKED,
+    @SerialName("is_worked")
     val isWorked: Boolean = true,
     val expenses: List<Expense> = emptyList(),
     val clients: List<String> = emptyList()

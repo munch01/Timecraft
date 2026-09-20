@@ -30,6 +30,10 @@ class CalendarViewModel {
         fetchDays()
     }
 
+    fun refresh() {
+        fetchDays()
+    }
+
     fun onPreviousMonth() {
         val prev = currentMonth.minus(1, DateTimeUnit.MONTH)
         currentMonth = LocalDate(prev.year, prev.month, 1)

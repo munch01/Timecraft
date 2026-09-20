@@ -7,10 +7,10 @@ import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        
         currentActivity = this
         appContext = applicationContext
+        
+        super.onCreate(savedInstanceState)
         
         enableEdgeToEdge()
         setContent {

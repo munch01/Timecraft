@@ -35,7 +35,11 @@ fun App() {
         // Splash screen logic
         LaunchedEffect(Unit) {
             kotlinx.coroutines.delay(2000) // 2 seconds splash
-            currentScreen = if (supabase.auth.currentSessionOrNull() != null) Screen.Home else Screen.Auth
+            currentScreen = try {
+                if (supabase.auth.currentSessionOrNull() != null) Screen.Home else Screen.Auth
+            } catch (e: Exception) {
+                Screen.Auth
+            }
         }
 
         Surface(

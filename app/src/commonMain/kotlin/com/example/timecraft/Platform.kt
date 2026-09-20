@@ -6,6 +6,7 @@ interface Platform {
     fun openUrl(url: String)
     fun openEmail(email: String, subject: String)
     fun exit()
+    fun getCurrentLocalDate(): kotlinx.datetime.LocalDate
 }
 
 expect fun getPlatform(): Platform

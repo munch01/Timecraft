@@ -18,6 +18,11 @@ class DesktopPlatform : Platform {
     override fun exit() {
         System.exit(0)
     }
+
+    override fun getCurrentLocalDate(): kotlinx.datetime.LocalDate {
+        val now = java.time.LocalDate.now()
+        return kotlinx.datetime.LocalDate(now.year, now.monthValue, now.dayOfMonth)
+    }
 }
 
 actual fun getPlatform(): Platform = DesktopPlatform()

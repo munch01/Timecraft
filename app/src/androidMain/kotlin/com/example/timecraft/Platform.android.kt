@@ -35,6 +35,15 @@ class AndroidPlatform(private val context: Context) : Platform {
     override fun exit() {
         currentActivity?.finish()
     }
+
+    override fun getCurrentLocalDate(): kotlinx.datetime.LocalDate {
+        val cal = java.util.Calendar.getInstance()
+        return kotlinx.datetime.LocalDate(
+            cal.get(java.util.Calendar.YEAR),
+            cal.get(java.util.Calendar.MONTH) + 1,
+            cal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+    }
 }
 
 lateinit var appContext: Context

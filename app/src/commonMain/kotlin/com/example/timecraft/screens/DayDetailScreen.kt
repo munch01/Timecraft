@@ -36,6 +36,7 @@ fun DayDetailScreen(
     var expenses by remember { mutableStateOf(initialWorkDay?.expenses ?: emptyList<Expense>()) }
     
     var showTypeMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color(0xFFE8ECEF),
@@ -49,7 +50,7 @@ fun DayDetailScreen(
                 },
                 actions = {
                     if (initialWorkDay != null) {
-                        IconButton(onClick = onDelete) {
+                        IconButton(onClick = { showDeleteConfirm = true }) {
                             Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -66,6 +67,7 @@ fun DayDetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // ... (rest of the column content)
             Text("Type de journée", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
             
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -202,5 +204,27 @@ fun DayDetailScreen(
             
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Supprimer cette journée ?") },
+            text = { Text("Toutes les données saisies (frais, clients) seront effacées.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Supprimer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Annuler") }
+            }
+        )
     }
 }

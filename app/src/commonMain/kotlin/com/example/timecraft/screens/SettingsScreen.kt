@@ -40,7 +40,7 @@ fun SettingsScreen(
     val platform = getPlatform()
     val coroutineScope = rememberCoroutineScope()
     val currentUser = supabase.auth.currentSessionOrNull()?.user
-    val appVersion = "1.0.1"
+    val appVersion = "1.0.2"
 
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }

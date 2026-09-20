@@ -20,13 +20,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
+import com.example.timecraft.model.DayType
+
 class CalendarViewModel {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     var currentMonth by mutableStateOf(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.let { LocalDate(it.year, it.month, 1) })
         private set
 
-    var workedDays by mutableStateOf(setOf<LocalDate>())
+    var workDays by mutableStateOf(mapOf<LocalDate, WorkDay>())
         private set
 
     init {
@@ -56,41 +58,55 @@ class CalendarViewModel {
                         }
                     }
                     .decodeList<WorkDay>()
-                workedDays = results.filter { it.isWorked }.map { it.date }.toSet()
+                workDays = results.associateBy { it.date }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    fun toggleDay(date: LocalDate) {
+    fun saveWorkDay(workDay: WorkDay) {
         val userId = supabase.auth.currentSessionOrNull()?.user?.id ?: return
-        val wasWorked = workedDays.contains(date)
+        val finalWorkDay = workDay.copy(userId = userId)
         
-        workedDays = if (wasWorked) {
-            workedDays - date
-        } else {
-            workedDays + date
-        }
+        workDays = workDays + (finalWorkDay.date to finalWorkDay)
 
         scope.launch {
             try {
-                if (wasWorked) {
-                    supabase.from("work_days").delete {
-                        filter {
-                            eq("user_id", userId)
-                            eq("date", date.toString())
-                        }
+                supabase.from("work_days").upsert(finalWorkDay)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                fetchDays() // Refresh on error
+            }
+        }
+    }
+
+    fun deleteWorkDay(date: LocalDate) {
+        val userId = supabase.auth.currentSessionOrNull()?.user?.id ?: return
+        workDays = workDays - date
+
+        scope.launch {
+            try {
+                supabase.from("work_days").delete {
+                    filter {
+                        eq("user_id", userId)
+                        eq("date", date.toString())
                     }
-                } else {
-                    val newDay = WorkDay(userId = userId, date = date, isWorked = true)
-                    supabase.from("work_days").insert(newDay)
                 }
             } catch (e: Exception) {
-                // Rollback UI state on error
-                workedDays = if (wasWorked) workedDays + date else workedDays - date
                 e.printStackTrace()
+                fetchDays()
             }
+        }
+    }
+
+    // Compatibility for toggle if needed (defaults to WORKED)
+    fun toggleDay(date: LocalDate) {
+        if (workDays.containsKey(date)) {
+            deleteWorkDay(date)
+        } else {
+            val userId = supabase.auth.currentSessionOrNull()?.user?.id ?: return
+            saveWorkDay(WorkDay(userId = userId, date = date, type = DayType.WORKED))
         }
     }
 }

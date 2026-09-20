@@ -16,19 +16,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.timecraft.model.DayType
+import com.example.timecraft.model.Expense
+import com.example.timecraft.model.WorkDay
 import kotlinx.datetime.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DayDetailScreen(
     date: LocalDate,
+    initialWorkDay: WorkDay?,
     onBack: () -> Unit,
-    onSave: (Double, String, String) -> Unit,
+    onSave: (WorkDay) -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var expenseAmount by remember { mutableStateOf("") }
-    var expenseDesc by remember { mutableStateOf("") }
-    var clientName by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf(initialWorkDay?.type ?: DayType.WORKED) }
+    var clients by remember { mutableStateOf(initialWorkDay?.clients ?: emptyList<String>()) }
+    var expenses by remember { mutableStateOf(initialWorkDay?.expenses ?: emptyList<Expense>()) }
+    
+    var showTypeMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color(0xFFE8ECEF),
@@ -38,6 +45,13 @@ fun DayDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                    }
+                },
+                actions = {
+                    if (initialWorkDay != null) {
+                        IconButton(onClick = onDelete) {
+                            Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -52,54 +66,130 @@ fun DayDetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Informations du jour", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color(0xFF1A3A5A))
+            Text("Type de journée", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+            
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { showTypeMenu = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = selectedType.getColor())
+                ) {
+                    Text(selectedType.label, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                }
+                
+                DropdownMenu(
+                    expanded = showTypeMenu,
+                    onDismissRequest = { showTypeMenu = false },
+                    modifier = Modifier.fillMaxWidth(0.9f)
+                ) {
+                    DayType.entries.filter { it != DayType.NONE }.forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text(type.label, color = type.getColor(), fontWeight = FontWeight.Bold) },
+                            onClick = {
+                                selectedType = type
+                                showTypeMenu = false
+                            }
+                        )
+                    }
+                }
+            }
 
+            // Section Clients
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Clients", fontWeight = FontWeight.Bold)
-                    OutlinedTextField(
-                        value = clientName,
-                        onValueChange = { clientName = it },
-                        label = { Text("Nom du client") },
-                        modifier = Modifier.fillMaxWidth(),
-                        leadingIcon = { Icon(Icons.Default.Business, contentDescription = null) }
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("Clients", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(onClick = { clients = clients + "" }) {
+                            Icon(Icons.Default.AddCircle, contentDescription = "Ajouter", tint = Color(0xFF1A3A5A))
+                        }
+                    }
+                    
+                    clients.forEachIndexed { index, client ->
+                        OutlinedTextField(
+                            value = client,
+                            onValueChange = { newValue ->
+                                clients = clients.toMutableList().apply { set(index, newValue) }
+                            },
+                            label = { Text("Nom du client ${index + 1}") },
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                IconButton(onClick = { clients = clients.filterIndexed { i, _ -> i != index } }) {
+                                    Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Supprimer")
+                                }
+                            }
+                        )
+                    }
                 }
             }
 
+            // Section Frais
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Frais engagés", fontWeight = FontWeight.Bold)
-                    OutlinedTextField(
-                        value = expenseAmount,
-                        onValueChange = { expenseAmount = it },
-                        label = { Text("Montant (€)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        leadingIcon = { Icon(Icons.Default.Euro, contentDescription = null) }
-                    )
-                    OutlinedTextField(
-                        value = expenseDesc,
-                        onValueChange = { expenseDesc = it },
-                        label = { Text("Description") },
-                        modifier = Modifier.fillMaxWidth(),
-                        leadingIcon = { Icon(Icons.Default.Description, contentDescription = null) }
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("Frais engagés", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(onClick = { expenses = expenses + Expense(amount = 0.0, description = "") }) {
+                            Icon(Icons.Default.AddCircle, contentDescription = "Ajouter", tint = Color(0xFF1A3A5A))
+                        }
+                    }
+                    
+                    expenses.forEachIndexed { index, expense ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedTextField(
+                                    value = if (expense.amount == 0.0) "" else expense.amount.toString(),
+                                    onValueChange = { newValue ->
+                                        val amt = newValue.toDoubleOrNull() ?: 0.0
+                                        expenses = expenses.toMutableList().apply { set(index, expense.copy(amount = amt)) }
+                                    },
+                                    label = { Text("Montant (€)") },
+                                    modifier = Modifier.weight(1f),
+                                    leadingIcon = { Icon(Icons.Default.Euro, contentDescription = null) }
+                                )
+                                IconButton(onClick = { expenses = expenses.filterIndexed { i, _ -> i != index } }) {
+                                    Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Supprimer")
+                                }
+                            }
+                            OutlinedTextField(
+                                value = expense.description,
+                                onValueChange = { newValue ->
+                                    expenses = expenses.toMutableList().apply { set(index, expense.copy(description = newValue)) }
+                                },
+                                label = { Text("Description") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (index < expenses.size - 1) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
-                    onSave(expenseAmount.toDoubleOrNull() ?: 0.0, expenseDesc, clientName)
+                    onSave(
+                        WorkDay(
+                            userId = "", // Handled by VM
+                            date = date,
+                            type = selectedType,
+                            isWorked = selectedType == DayType.WORKED,
+                            clients = clients.filter { it.isNotBlank() },
+                            expenses = expenses.filter { it.description.isNotBlank() || it.amount > 0 }
+                        )
+                    )
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(12.dp),
@@ -109,6 +199,8 @@ fun DayDetailScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Enregistrer")
             }
+            
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }

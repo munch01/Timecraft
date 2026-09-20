@@ -43,8 +43,14 @@ fun App() {
                 Screen.DayDetail -> selectedDate?.let { date ->
                     DayDetailScreen(
                         date = date,
+                        initialWorkDay = calendarViewModel.workDays[date],
                         onBack = { currentScreen = Screen.Home },
-                        onSave = { _, _, _ ->
+                        onSave = { updatedWorkDay ->
+                            calendarViewModel.saveWorkDay(updatedWorkDay)
+                            currentScreen = Screen.Home
+                        },
+                        onDelete = {
+                            calendarViewModel.deleteWorkDay(date)
                             currentScreen = Screen.Home
                         }
                     )

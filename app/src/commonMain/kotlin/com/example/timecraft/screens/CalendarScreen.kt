@@ -91,12 +91,11 @@ fun CalendarScreen(
                     }
 
                     items(days) { date ->
-                        val isWorked = viewModel.workedDays.contains(date)
+                        val workDay = viewModel.workDays[date]
                         DayItem(
                             date = date,
-                            isWorked = isWorked,
+                            workDay = workDay,
                             onClick = { 
-                                viewModel.toggleDay(date)
                                 onDayClick(date)
                             }
                         )
@@ -119,7 +118,7 @@ fun CalendarScreen(
                 ) {
                     Column {
                         Text("Jours travaillés", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("${viewModel.workedDays.filter { it.month == currentMonth.month && it.year == currentMonth.year }.size} jours ce mois-ci", style = MaterialTheme.typography.bodySmall)
+                        Text("${viewModel.workDays.values.count { it.date.month == currentMonth.month && it.date.year == currentMonth.year && it.type == com.example.timecraft.model.DayType.WORKED }} jours ce mois-ci", style = MaterialTheme.typography.bodySmall)
                     }
                     
                     Box(
@@ -129,7 +128,7 @@ fun CalendarScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = viewModel.workedDays.filter { it.month == currentMonth.month && it.year == currentMonth.year }.size.toString(),
+                            text = viewModel.workDays.values.count { it.date.month == currentMonth.month && it.date.year == currentMonth.year && it.type == com.example.timecraft.model.DayType.WORKED }.toString(),
                             fontWeight = FontWeight.Black,
                             color = Color(0xFF1A3A5A)
                         )
@@ -143,22 +142,26 @@ fun CalendarScreen(
 @Composable
 fun DayItem(
     date: LocalDate,
-    isWorked: Boolean,
+    workDay: com.example.timecraft.model.WorkDay?,
     onClick: () -> Unit
 ) {
+    val isMarked = workDay != null
+    val bgColor = workDay?.type?.getColor() ?: Color.Transparent
+    val textColor = if (isMarked) Color.White else Color.Black
+
     Box(
         modifier = Modifier
             .aspectRatio(1f)
             .padding(4.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isWorked) Color(0xFF1A3A5A) else Color.Transparent)
+            .background(bgColor)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = date.dayOfMonth.toString(),
-            color = if (isWorked) Color.White else Color.Black,
-            fontWeight = if (isWorked) FontWeight.Bold else FontWeight.Normal,
+            color = textColor,
+            fontWeight = if (isMarked) FontWeight.Bold else FontWeight.Normal,
             fontSize = 14.sp
         )
     }

@@ -4,7 +4,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
@@ -18,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.emeric.timecraft.getPlatform
+import com.emeric.timecraft.model.DayType
+import com.emeric.timecraft.utils.DateTimeUtils
 import com.emeric.timecraft.viewmodel.CalendarViewModel
 import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.resources.painterResource
@@ -107,7 +112,7 @@ fun HomeScreen(
                         onDayClick = onDayClick
                     )
                     1 -> MapScreen()
-                    2 -> ReportScreen()
+                    2 -> ReportScreen(viewModel = calendarViewModel)
                 }
 
                 // Floating Bottom Bar
@@ -175,12 +180,148 @@ private fun NavTabItem(index: Int, icon: androidx.compose.ui.graphics.vector.Ima
 }
 
 @Composable
-fun ReportScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.BarChart, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray)
-            Text("Rapports", style = MaterialTheme.typography.titleLarge)
-            Text("Statistiques de vos journées", style = MaterialTheme.typography.bodySmall)
+fun ReportScreen(viewModel: CalendarViewModel) {
+    val currentMonth = viewModel.currentMonth
+    val monthDays = remember(viewModel.workDays, currentMonth) {
+        viewModel.workDays.values.filter {
+            it.date.month == currentMonth.month && it.date.year == currentMonth.year
         }
+    }
+
+    val workedDaysCount = monthDays.count { it.type == DayType.WORKED }
+    val rttDaysCount = monthDays.count { it.type == DayType.RTT }
+    val leaveDaysCount = monthDays.count { it.type == DayType.PAID_LEAVE }
+    val familyDaysCount = monthDays.count { it.type == DayType.FAMILY_ABSENCE }
+    val unpaidDaysCount = monthDays.count { it.type == DayType.UNPAID_LEAVE }
+
+    val totalHoursWorked = monthDays.filter { it.type == DayType.WORKED }.sumOf { it.totalWorkedHours() }
+    val totalExpenses = monthDays.flatMap { it.expenses }.sumOf { it.amount }
+
+    // Group hours by client
+    val clientHoursMap = remember(monthDays) {
+        val map = mutableMapOf<String, Double>()
+        monthDays.filter { it.type == DayType.WORKED }.forEach { day ->
+            day.getEffectiveSchedules().forEach { schedule ->
+                if (schedule.clientName.isNotBlank()) {
+                    val hrs = schedule.calculateHours()
+                    map[schedule.clientName] = (map[schedule.clientName] ?: 0.0) + hrs
+                }
+            }
+        }
+        map
+    }
+
+    val formatH = { hrs: Double ->
+        val h = hrs.toInt()
+        val m = ((hrs - h) * 60).toInt()
+        if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .padding(bottom = 85.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Top Month Selector Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.92f)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { viewModel.onPreviousMonth() }) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "Précédent")
+                }
+                Text(
+                    "${DateTimeUtils.getMonthName(currentMonth.month)} ${currentMonth.year}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1A3A5A)
+                )
+                IconButton(onClick = { viewModel.onNextMonth() }) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "Suivant")
+                }
+            }
+        }
+
+        // Days Type Breakdown Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.92f)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Bilan du mois", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+
+                ReportRow("💼 Jours travaillés", "$workedDaysCount jours (${formatH(totalHoursWorked)})", DayType.WORKED.getColor())
+                ReportRow("⏱️ RTT pris", "$rttDaysCount jours", DayType.RTT.getColor())
+                ReportRow("🌴 Congés payés", "$leaveDaysCount jours", DayType.PAID_LEAVE.getColor())
+                ReportRow("👨‍👩‍👧 Evénement familial", "$familyDaysCount jours", DayType.FAMILY_ABSENCE.getColor())
+                ReportRow("🚫 Congé sans solde", "$unpaidDaysCount jours", DayType.UNPAID_LEAVE.getColor())
+
+                if (totalExpenses > 0) {
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.4f))
+                    ReportRow("💶 Total des frais engagés", "$totalExpenses €", Color(0xFF388E3C))
+                }
+            }
+        }
+
+        // Clients Breakdown Card
+        if (clientHoursMap.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.92f)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Répartition par Client", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+
+                    clientHoursMap.forEach { (clientName, hrs) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(clientName, fontWeight = FontWeight.SemiBold)
+                            Surface(
+                                color = Color(0xFF1A3A5A),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    formatH(hrs),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportRow(label: String, value: String, color: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = CircleShape, color = color, modifier = Modifier.size(10.dp)) {}
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        }
+        Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF1A3A5A))
     }
 }

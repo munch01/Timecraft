@@ -178,231 +178,252 @@ fun DayDetailScreen(
                 }
             }
 
-            // Section Clients & Horaires
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Clients & Horaires de travail", fontWeight = FontWeight.Bold)
-                            
-                            val actualHours = clientSchedules.sumOf { it.calculateHours() }
-                            val targetHours = defaultConfig.calculateTargetHours()
-                            val diffHours = actualHours - targetHours
-
-                            val formatH = { hrs: Double ->
-                                val absHrs = kotlin.math.abs(hrs)
-                                val h = absHrs.toInt()
-                                val m = ((absHrs - h) * 60).toInt()
-                                if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
-                            }
-
-                            if (actualHours > 0 || targetHours > 0) {
-                                Text(
-                                    "Total : ${formatH(actualHours)} (Prévu ${defaultConfig.label} : ${formatH(targetHours)})",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF1A3A5A),
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                if (defaultConfig.isWorkDay && targetHours > 0) {
-                                    val overText = when {
-                                        diffHours > 0.01 -> "+${formatH(diffHours)} (Heures supplémentaires)"
-                                        diffHours < -0.01 -> "-${formatH(diffHours)} (Heures manquantes)"
-                                        else -> "Conforme aux horaires prévus"
-                                    }
-                                    val overColor = when {
-                                        diffHours > 0.01 -> Color(0xFF2E7D32)
-                                        diffHours < -0.01 -> Color(0xFFE65100)
-                                        else -> Color.Gray
-                                    }
-                                    Text(overText, style = MaterialTheme.typography.labelSmall, color = overColor, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                        IconButton(onClick = {
-                            clientSchedules = clientSchedules + ClientSchedule(
-                                clientName = "",
-                                morningStart = defaultConfig.morningStart,
-                                morningEnd = defaultConfig.morningEnd,
-                                afternoonStart = defaultConfig.afternoonStart,
-                                afternoonEnd = defaultConfig.afternoonEnd
-                            )
-                        }) {
-                            Icon(Icons.Default.AddCircle, contentDescription = "Ajouter client", tint = Color(0xFF1A3A5A))
-                        }
+            if (selectedType != DayType.WORKED) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = selectedType.getColor().copy(alpha = 0.15f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = selectedType.getColor())
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Journée enregistrée comme : ${selectedType.label}",
+                            fontWeight = FontWeight.Bold,
+                            color = selectedType.getColor()
+                        )
                     }
+                }
+            } else {
+                // Section Clients & Horaires (for WORKED days)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Clients & Horaires de travail", fontWeight = FontWeight.Bold)
+                                
+                                val actualHours = clientSchedules.sumOf { it.calculateHours() }
+                                val targetHours = defaultConfig.calculateTargetHours()
+                                val diffHours = actualHours - targetHours
 
-                    if (clientSchedules.isEmpty()) {
-                        Text("Aucun client saisi. Cliquez sur + pour ajouter un client et ses horaires.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    }
-
-                    clientSchedules.forEachIndexed { index, item ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F8)),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    OutlinedTextField(
-                                        value = item.clientName,
-                                        onValueChange = { newName ->
-                                            clientSchedules = clientSchedules.toMutableList().apply {
-                                                set(index, item.copy(clientName = newName))
-                                            }
-                                        },
-                                        label = { Text("Nom du client ${index + 1}") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                    IconButton(onClick = {
-                                        clientSchedules = clientSchedules.filterIndexed { i, _ -> i != index }
-                                    }) {
-                                        Icon(Icons.Default.DeleteOutline, contentDescription = "Supprimer le client", tint = MaterialTheme.colorScheme.error)
-                                    }
+                                val formatH = { hrs: Double ->
+                                    val absHrs = kotlin.math.abs(hrs)
+                                    val h = absHrs.toInt()
+                                    val m = ((absHrs - h) * 60).toInt()
+                                    if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
                                 }
 
-                                val hasMorning = item.morningStart.isNotBlank() || item.morningEnd.isNotBlank()
-                                val hasAfternoon = item.afternoonStart.isNotBlank() || item.afternoonEnd.isNotBlank()
-
-                                // Section Matin
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Matin", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
-                                    if (hasMorning) {
-                                        TextButton(
-                                            onClick = {
-                                                clientSchedules = clientSchedules.toMutableList().apply {
-                                                    set(index, item.copy(morningStart = "", morningEnd = ""))
-                                                }
-                                            },
-                                            contentPadding = PaddingValues(0.dp)
-                                        ) {
-                                            Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Supprimer le matin", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                                        }
-                                    }
-                                }
-
-                                if (hasMorning) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        TimeInputField(
-                                            value = item.morningStart,
-                                            onValueChange = { newStart ->
-                                                clientSchedules = clientSchedules.toMutableList().apply {
-                                                    set(index, item.copy(morningStart = newStart))
-                                                }
-                                            },
-                                            label = "Début",
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        TimeInputField(
-                                            value = item.morningEnd,
-                                            onValueChange = { newEnd ->
-                                                clientSchedules = clientSchedules.toMutableList().apply {
-                                                    set(index, item.copy(morningEnd = newEnd))
-                                                }
-                                            },
-                                            label = "Fin",
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                } else {
-                                    OutlinedButton(
-                                        onClick = {
-                                            clientSchedules = clientSchedules.toMutableList().apply {
-                                                set(index, item.copy(morningStart = defaultConfig.morningStart, morningEnd = defaultConfig.morningEnd))
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Ajouter les horaires du matin", style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                // Section Après-midi
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Après-midi", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
-                                    if (hasAfternoon) {
-                                        TextButton(
-                                            onClick = {
-                                                clientSchedules = clientSchedules.toMutableList().apply {
-                                                    set(index, item.copy(afternoonStart = "", afternoonEnd = ""))
-                                                }
-                                            },
-                                            contentPadding = PaddingValues(0.dp)
-                                        ) {
-                                            Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Supprimer l'après-midi", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                                        }
-                                    }
-                                }
-
-                                if (hasAfternoon) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        TimeInputField(
-                                            value = item.afternoonStart,
-                                            onValueChange = { newStart ->
-                                                clientSchedules = clientSchedules.toMutableList().apply {
-                                                    set(index, item.copy(afternoonStart = newStart))
-                                                }
-                                            },
-                                            label = "Début",
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        TimeInputField(
-                                            value = item.afternoonEnd,
-                                            onValueChange = { newEnd ->
-                                                clientSchedules = clientSchedules.toMutableList().apply {
-                                                    set(index, item.copy(afternoonEnd = newEnd))
-                                                }
-                                            },
-                                            label = "Fin",
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                } else {
-                                    OutlinedButton(
-                                        onClick = {
-                                            clientSchedules = clientSchedules.toMutableList().apply {
-                                                set(index, item.copy(afternoonStart = defaultConfig.afternoonStart, afternoonEnd = defaultConfig.afternoonEnd))
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Ajouter les horaires de l'après-midi", style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-
-                                val itemHours = item.formattedHours()
-                                if (item.calculateHours() > 0) {
+                                if (actualHours > 0 || targetHours > 0) {
                                     Text(
-                                        "Durée travaillée pour ce client : $itemHours",
+                                        "Total : ${formatH(actualHours)} (Prévu ${defaultConfig.label} : ${formatH(targetHours)})",
                                         style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFF1A3A5A)
+                                        color = Color(0xFF1A3A5A),
+                                        fontWeight = FontWeight.Bold
                                     )
+
+                                    if (defaultConfig.isWorkDay && targetHours > 0) {
+                                        val overText = when {
+                                            diffHours > 0.01 -> "+${formatH(diffHours)} (Heures supplémentaires)"
+                                            diffHours < -0.01 -> "-${formatH(diffHours)} (Heures manquantes)"
+                                            else -> "Conforme aux horaires prévus"
+                                        }
+                                        val overColor = when {
+                                            diffHours > 0.01 -> Color(0xFF2E7D32)
+                                            diffHours < -0.01 -> Color(0xFFE65100)
+                                            else -> Color.Gray
+                                        }
+                                        Text(overText, style = MaterialTheme.typography.labelSmall, color = overColor, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            IconButton(onClick = {
+                                clientSchedules = clientSchedules + ClientSchedule(
+                                    clientName = "",
+                                    morningStart = defaultConfig.morningStart,
+                                    morningEnd = defaultConfig.morningEnd,
+                                    afternoonStart = defaultConfig.afternoonStart,
+                                    afternoonEnd = defaultConfig.afternoonEnd
+                                )
+                            }) {
+                                Icon(Icons.Default.AddCircle, contentDescription = "Ajouter client", tint = Color(0xFF1A3A5A))
+                            }
+                        }
+
+                        if (clientSchedules.isEmpty()) {
+                            Text("Aucun client saisi. Cliquez sur + pour ajouter un client et ses horaires.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        }
+
+                        clientSchedules.forEachIndexed { index, item ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F8)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        OutlinedTextField(
+                                            value = item.clientName,
+                                            onValueChange = { newName ->
+                                                clientSchedules = clientSchedules.toMutableList().apply {
+                                                    set(index, item.copy(clientName = newName))
+                                                }
+                                            },
+                                            label = { Text("Nom du client ${index + 1}") },
+                                            modifier = Modifier.weight(1f),
+                                            singleLine = true
+                                        )
+                                        IconButton(onClick = {
+                                            clientSchedules = clientSchedules.filterIndexed { i, _ -> i != index }
+                                        }) {
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = "Supprimer le client", tint = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+
+                                    val hasMorning = item.morningStart.isNotBlank() || item.morningEnd.isNotBlank()
+                                    val hasAfternoon = item.afternoonStart.isNotBlank() || item.afternoonEnd.isNotBlank()
+
+                                    // Section Matin
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Matin", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                                        if (hasMorning) {
+                                            TextButton(
+                                                onClick = {
+                                                    clientSchedules = clientSchedules.toMutableList().apply {
+                                                        set(index, item.copy(morningStart = "", morningEnd = ""))
+                                                    }
+                                                },
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Supprimer le matin", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                            }
+                                        }
+                                    }
+
+                                    if (hasMorning) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            TimeInputField(
+                                                value = item.morningStart,
+                                                onValueChange = { newStart ->
+                                                    clientSchedules = clientSchedules.toMutableList().apply {
+                                                        set(index, item.copy(morningStart = newStart))
+                                                    }
+                                                },
+                                                label = "Début",
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            TimeInputField(
+                                                value = item.morningEnd,
+                                                onValueChange = { newEnd ->
+                                                    clientSchedules = clientSchedules.toMutableList().apply {
+                                                        set(index, item.copy(morningEnd = newEnd))
+                                                    }
+                                                },
+                                                label = "Fin",
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = {
+                                                clientSchedules = clientSchedules.toMutableList().apply {
+                                                    set(index, item.copy(morningStart = defaultConfig.morningStart, morningEnd = defaultConfig.morningEnd))
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Ajouter les horaires du matin", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    // Section Après-midi
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Après-midi", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                                        if (hasAfternoon) {
+                                            TextButton(
+                                                onClick = {
+                                                    clientSchedules = clientSchedules.toMutableList().apply {
+                                                        set(index, item.copy(afternoonStart = "", afternoonEnd = ""))
+                                                    }
+                                                },
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Supprimer l'après-midi", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                            }
+                                        }
+                                    }
+
+                                    if (hasAfternoon) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            TimeInputField(
+                                                value = item.afternoonStart,
+                                                onValueChange = { newStart ->
+                                                    clientSchedules = clientSchedules.toMutableList().apply {
+                                                        set(index, item.copy(afternoonStart = newStart))
+                                                    }
+                                                },
+                                                label = "Début",
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            TimeInputField(
+                                                value = item.afternoonEnd,
+                                                onValueChange = { newEnd ->
+                                                    clientSchedules = clientSchedules.toMutableList().apply {
+                                                        set(index, item.copy(afternoonEnd = newEnd))
+                                                    }
+                                                },
+                                                label = "Fin",
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = {
+                                                clientSchedules = clientSchedules.toMutableList().apply {
+                                                    set(index, item.copy(afternoonStart = defaultConfig.afternoonStart, afternoonEnd = defaultConfig.afternoonEnd))
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Ajouter les horaires de l'après-midi", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+
+                                    val itemHours = item.formattedHours()
+                                    if (item.calculateHours() > 0) {
+                                        Text(
+                                            "Durée travaillée pour ce client : $itemHours",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF1A3A5A)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -460,7 +481,9 @@ fun DayDetailScreen(
 
             Button(
                 onClick = {
-                    val validSchedules = clientSchedules.filter { it.clientName.isNotBlank() || it.calculateHours() > 0 }
+                    val validSchedules = if (selectedType == DayType.WORKED) {
+                        clientSchedules.filter { it.clientName.isNotBlank() || it.calculateHours() > 0 }
+                    } else emptyList()
                     val encodedClients = validSchedules.map { it.toSerializedString() }
                     onSave(
                         WorkDay(

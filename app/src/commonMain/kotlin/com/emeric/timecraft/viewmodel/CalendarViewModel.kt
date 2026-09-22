@@ -94,7 +94,6 @@ class CalendarViewModel {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                fetchDays() // Refresh on error to show actual state
             }
         }
     }

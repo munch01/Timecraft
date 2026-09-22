@@ -42,18 +42,8 @@ fun DayDetailScreen(
     
     var clientSchedules by remember {
         mutableStateOf(
-            if (initialWorkDay != null && initialWorkDay.clientSchedules.isNotEmpty()) {
-                initialWorkDay.clientSchedules
-            } else if (initialWorkDay != null && initialWorkDay.clients.isNotEmpty()) {
-                initialWorkDay.clients.map {
-                    ClientSchedule(
-                        clientName = it,
-                        morningStart = defaultConfig.morningStart,
-                        morningEnd = defaultConfig.morningEnd,
-                        afternoonStart = defaultConfig.afternoonStart,
-                        afternoonEnd = defaultConfig.afternoonEnd
-                    )
-                }
+            if (initialWorkDay != null && initialWorkDay.clients.isNotEmpty()) {
+                initialWorkDay.getEffectiveSchedules()
             } else if (defaultConfig.isWorkDay) {
                 listOf(
                     ClientSchedule(
@@ -341,15 +331,14 @@ fun DayDetailScreen(
             Button(
                 onClick = {
                     val validSchedules = clientSchedules.filter { it.clientName.isNotBlank() || it.calculateHours() > 0 }
-                    val clientNames = validSchedules.map { it.clientName }.filter { it.isNotBlank() }
+                    val encodedClients = validSchedules.map { it.toSerializedString() }
                     onSave(
                         WorkDay(
                             userId = "", // Handled by VM
                             date = date,
                             type = selectedType,
                             isWorked = selectedType == DayType.WORKED,
-                            clients = clientNames,
-                            clientSchedules = validSchedules,
+                            clients = encodedClients,
                             expenses = expenses.filter { it.description.isNotBlank() || it.amount > 0 }
                         )
                     )

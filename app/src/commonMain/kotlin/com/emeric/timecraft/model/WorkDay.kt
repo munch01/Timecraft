@@ -116,6 +116,27 @@ data class ClientSchedule(
     @SerialName("afternoon_end")
     val afternoonEnd: String = "17:30"
 ) {
+    fun toSerializedString(): String {
+        return "$clientName|$morningStart|$morningEnd|$afternoonStart|$afternoonEnd"
+    }
+
+    companion object {
+        fun fromSerializedString(str: String): ClientSchedule {
+            val parts = str.split("|")
+            return if (parts.size >= 5) {
+                ClientSchedule(
+                    clientName = parts[0],
+                    morningStart = parts[1],
+                    morningEnd = parts[2],
+                    afternoonStart = parts[3],
+                    afternoonEnd = parts[4]
+                )
+            } else {
+                ClientSchedule(clientName = str)
+            }
+        }
+    }
+
     fun calculateHours(): Double {
         fun parseMinutes(timeStr: String): Int? {
             val clean = timeStr.trim().replace("h", ":").replace("H", ":")
@@ -159,13 +180,15 @@ data class WorkDay(
     @SerialName("is_worked")
     val isWorked: Boolean = true,
     val expenses: List<Expense> = emptyList(),
-    val clients: List<String> = emptyList(),
-    @SerialName("client_schedules")
-    val clientSchedules: List<ClientSchedule> = emptyList()
+    val clients: List<String> = emptyList()
 ) {
+    fun getEffectiveSchedules(): List<ClientSchedule> {
+        return clients.map { ClientSchedule.fromSerializedString(it) }
+    }
+
     fun totalWorkedHours(): Double {
         if (type != DayType.WORKED) return 0.0
-        return clientSchedules.sumOf { it.calculateHours() }
+        return getEffectiveSchedules().sumOf { it.calculateHours() }
     }
 
     fun formattedTotalHours(): String {

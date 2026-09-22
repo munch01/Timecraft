@@ -12,7 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -20,35 +19,35 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.emeric.timecraft.LocationPoint
 import com.emeric.timecraft.MapProjection
 import com.emeric.timecraft.getLocationTracker
 import com.emeric.timecraft.getPlatform
 import com.emeric.timecraft.getSettingsStorage
-import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsBytes
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.decodeToImageBitmap
 
 class TileCache {
-    private val httpClient = HttpClient()
     private val memoryCache = mutableMapOf<String, ImageBitmap>()
 
-    suspend fun getTile(zoom: Int, tileX: Int, tileY: Int): ImageBitmap? {
+    suspend fun getTile(zoom: Int, tileX: Int, tileY: Int): ImageBitmap? = withContext(Dispatchers.Default) {
         val key = "$zoom/$tileX/$tileY"
-        memoryCache[key]?.let { return it }
+        memoryCache[key]?.let { return@withContext it }
 
-        return try {
-            val url = "https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
-            val response = httpClient.get(url) {
-                header("User-Agent", "TimeCraftApp/1.0 (Android; Kotlin)")
-            }
-            if (response.status.value == 200) {
-                val bytes = response.bodyAsBytes()
+        return@withContext try {
+            val urlStr = "https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
+            val url = java.net.URL(urlStr)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) TimeCraft/1.0")
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            if (conn.responseCode == 200) {
+                val bytes = conn.inputStream.readBytes()
                 @OptIn(org.jetbrains.compose.resources.ExperimentalResourceApi::class)
                 val bitmap = bytes.decodeToImageBitmap()
                 memoryCache[key] = bitmap
@@ -134,7 +133,7 @@ fun MapScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFE8ECEF))
+            .background(Color(0xFFE0E8EC))
     ) {
         // Interactive Map Canvas
         Box(
@@ -198,12 +197,12 @@ fun MapScreen(
                         if (bmp != null) {
                             drawImage(
                                 image = bmp,
-                                dstOffset = androidx.compose.ui.unit.IntOffset(tileOffsetX.toInt(), tileOffsetY.toInt())
+                                dstOffset = IntOffset(tileOffsetX.toInt(), tileOffsetY.toInt())
                             )
                         } else {
-                            // Draw Grid Placeholder
+                            // Grid placeholder
                             drawRect(
-                                color = Color.LightGray.copy(alpha = 0.2f),
+                                color = Color.LightGray.copy(alpha = 0.3f),
                                 topLeft = Offset(tileOffsetX.toFloat(), tileOffsetY.toFloat()),
                                 size = androidx.compose.ui.geometry.Size(256f, 256f)
                             )
@@ -282,13 +281,13 @@ fun MapScreen(
         Surface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(16.dp)
+                .padding(top = 12.dp, start = 12.dp, end = 12.dp)
                 .fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White.copy(alpha = 0.92f),
+            color = Color.White,
             shadowElevation = 8.dp
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -302,7 +301,7 @@ fun MapScreen(
                         ) {}
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (isTracking) "Suivi GPS actif (Arrière-plan)" else "Suivi inactif",
+                            text = if (isTracking) "Suivi GPS actif" else "Suivi inactif",
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (isTracking) Color(0xFF2E7D32) else Color(0xFFD32F2F)

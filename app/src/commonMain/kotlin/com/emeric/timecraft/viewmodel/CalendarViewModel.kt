@@ -12,12 +12,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.*
 import com.emeric.timecraft.getPlatform
 import kotlinx.serialization.json.Json
 
 class CalendarViewModel {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     var currentMonth by mutableStateOf(
         getPlatform().getCurrentLocalDate().let { LocalDate(it.year, it.month, 1) }
@@ -50,7 +51,6 @@ class CalendarViewModel {
     private fun fetchDays() {
         scope.launch {
             try {
-                // Wait for session to be restored
                 var userId: String? = null
                 for (i in 1..10) {
                     userId = supabase.auth.currentSessionOrNull()?.user?.id
@@ -60,12 +60,14 @@ class CalendarViewModel {
                 
                 if (userId == null) return@launch
 
-                val rawData = supabase.from("work_days")
-                    .select {
-                        filter {
-                            eq("user_id", userId)
-                        }
-                    }.data
+                val rawData = withContext(Dispatchers.Default) {
+                    supabase.from("work_days")
+                        .select {
+                            filter {
+                                eq("user_id", userId)
+                            }
+                        }.data
+                }
 
                 val jsonParser = Json {
                     ignoreUnknownKeys = true
@@ -73,7 +75,11 @@ class CalendarViewModel {
                     isLenient = true
                 }
 
-                val results = jsonParser.decodeFromString<List<WorkDay>>(rawData)
+                val results = withContext(Dispatchers.Default) {
+                    jsonParser.decodeFromString<List<WorkDay>>(rawData)
+                }
+
+                // Update Compose state on Main UI thread
                 workDays = results.associateBy { it.date }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -96,8 +102,10 @@ class CalendarViewModel {
 
         scope.launch {
             try {
-                supabase.from("work_days").upsert(finalWorkDay) {
-                    onConflict = "user_id,date"
+                withContext(Dispatchers.Default) {
+                    supabase.from("work_days").upsert(finalWorkDay) {
+                        onConflict = "user_id,date"
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -115,10 +123,12 @@ class CalendarViewModel {
 
         scope.launch {
             try {
-                supabase.from("work_days").delete {
-                    filter {
-                        eq("user_id", userId)
-                        eq("date", date.toString())
+                withContext(Dispatchers.Default) {
+                    supabase.from("work_days").delete {
+                        filter {
+                            eq("user_id", userId)
+                            eq("date", date.toString())
+                        }
                     }
                 }
             } catch (e: Exception) {

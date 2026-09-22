@@ -32,6 +32,18 @@ class AndroidPlatform(private val context: Context) : Platform {
         }
     }
 
+    override fun openAppSettings() {
+        try {
+            val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = android.net.Uri.fromParts("package", context.packageName, null)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            showToast("Impossible d'ouvrir les paramètres")
+        }
+    }
+
     override fun exit() {
         currentActivity?.finish()
     }

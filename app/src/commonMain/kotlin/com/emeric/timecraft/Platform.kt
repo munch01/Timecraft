@@ -5,6 +5,7 @@ interface Platform {
     fun showToast(message: String)
     fun openUrl(url: String)
     fun openEmail(email: String, subject: String)
+    fun openAppSettings()
     fun exit()
     fun getCurrentLocalDate(): kotlinx.datetime.LocalDate
 }

@@ -15,6 +15,10 @@ class DesktopPlatform : Platform {
         java.awt.Desktop.getDesktop().mail(java.net.URI("mailto:$email?subject=${subject.replace(" ", "%20")}"))
     }
 
+    override fun openAppSettings() {
+        showToast("Paramètres non requis sur Desktop")
+    }
+
     override fun exit() {
         System.exit(0)
     }

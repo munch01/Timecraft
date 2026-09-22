@@ -433,20 +433,37 @@ fun MapScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("TimeCraft a besoin d'accéder à votre position GPS pour enregistrer vos trajets professionnels et calculer vos kilomètres parcourus.")
-                    Text("Le suivi continue en arrière-plan lorsque vous démarrez un trajet. Vos données restent 100% privées.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text("Pour permettre le suivi en arrière-plan (téléphone verrouillé ou application fermée), veuillez autoriser la localisation dans les paramètres de votre téléphone.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        settingsStorage.setBoolean("gps_permission_asked", true)
-                        hasAskedPermission = true
-                        showPermissionDialog = false
-                        locationTracker.startTracking()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A3A5A))
-                ) {
-                    Text("Autoriser & Démarrer")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
+                    Button(
+                        onClick = {
+                            settingsStorage.setBoolean("gps_permission_asked", true)
+                            hasAskedPermission = true
+                            showPermissionDialog = false
+                            platform.openAppSettings()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A3A5A)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Paramètres du téléphone")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            settingsStorage.setBoolean("gps_permission_asked", true)
+                            hasAskedPermission = true
+                            showPermissionDialog = false
+                            locationTracker.startTracking()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Démarrer directement")
+                    }
                 }
             },
             dismissButton = {

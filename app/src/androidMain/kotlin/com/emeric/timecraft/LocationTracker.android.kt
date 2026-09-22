@@ -48,6 +48,9 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
                 )
                 _isTracking.value = true
 
+                // Start Foreground Service to keep GPS active in background
+                LocationForegroundService.start(context)
+
                 // Try getting last known location immediately
                 val lastLoc = locationManager?.getLastKnownLocation(provider)
                 if (lastLoc != null) {
@@ -66,6 +69,7 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
         if (!_isTracking.value) return
         try {
             locationManager?.removeUpdates(this)
+            LocationForegroundService.stop(context)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -95,6 +99,7 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     override fun onProviderEnabled(provider: String) {}
     override fun onProviderDisabled(provider: String) {}

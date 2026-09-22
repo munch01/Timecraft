@@ -5,6 +5,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,7 +29,20 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
             val hasCoarse = context.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
             if (!hasFine && !hasCoarse) {
-                getPlatform().showToast("Permission localisation non accordée")
+                val activity = currentActivity
+                if (activity != null) {
+                    ActivityCompat.requestPermissions(
+                        activity,
+                        arrayOf(
+                            android.Manifest.permission.ACCESS_FINE_LOCATION,
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION
+                        ),
+                        1001
+                    )
+                } else {
+                    getPlatform().openAppSettings()
+                }
+                getPlatform().showToast("Veuillez autoriser la géolocalisation dans le pop-up système ou les paramètres")
                 return
             }
 

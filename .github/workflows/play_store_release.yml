@@ -21,7 +21,7 @@ jobs:
       - name: Decode Keystore
         id: decode_keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\r\n ' | base64 --decode > app/release.keystore
           ls -la app/release.keystore
           echo "KEYSTORE_PATH=release.keystore" >> $GITHUB_ENV
 

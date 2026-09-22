@@ -17,5 +17,15 @@ interface SettingsStorage {
     fun setString(key: String, value: String)
 }
 
+interface PdfExporter {
+    fun exportReportPdf(
+        title: String,
+        subtitle: String,
+        metrics: List<Pair<String, String>>,
+        clientBreakdown: List<Pair<String, String>>
+    )
+}
+
 expect fun getPlatform(): Platform
 expect fun getSettingsStorage(): SettingsStorage
+expect fun getPdfExporter(): PdfExporter

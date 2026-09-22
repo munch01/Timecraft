@@ -43,11 +43,14 @@ class TileCache {
             val url = java.net.URL(urlStr)
             val conn = url.openConnection() as java.net.HttpURLConnection
             conn.requestMethod = "GET"
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) TimeCraft/1.0")
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
+            conn.setRequestProperty("User-Agent", "TimeCraft/1.0 (Android; Mobile)")
+            conn.connectTimeout = 6000
+            conn.readTimeout = 6000
+            conn.instanceFollowRedirects = true
+            conn.connect()
+
             if (conn.responseCode == 200) {
-                val bytes = conn.inputStream.readBytes()
+                val bytes = conn.inputStream.use { it.readBytes() }
                 @OptIn(org.jetbrains.compose.resources.ExperimentalResourceApi::class)
                 val bitmap = bytes.decodeToImageBitmap()
                 memoryCache[key] = bitmap
@@ -56,6 +59,7 @@ class TileCache {
                 null
             }
         } catch (e: Exception) {
+            e.printStackTrace()
             null
         }
     }

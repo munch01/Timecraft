@@ -42,7 +42,7 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
                 } else {
                     getPlatform().openAppSettings()
                 }
-                getPlatform().showToast("Veuillez autoriser la géolocalisation dans le pop-up système ou les paramètres")
+                getPlatform().showToast("Veuillez autoriser la géolocalisation dans le pop-up système")
                 return
             }
 
@@ -56,7 +56,7 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
             // Register all available providers safely
             try {
                 if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10000L, 10f, this)
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000L, 5f, this)
                     registered = true
                 }
             } catch (e: Exception) {
@@ -65,7 +65,7 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
 
             try {
                 if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000L, 10f, this)
+                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000L, 5f, this)
                     registered = true
                 }
             } catch (e: Exception) {
@@ -73,7 +73,7 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
             }
 
             try {
-                locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 10000L, 10f, this)
+                locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 5000L, 5f, this)
                 registered = true
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -83,17 +83,35 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
                 _isTracking.value = true
                 LocationForegroundService.start(context)
 
-                // Query last known position from any provider
+                // Query last known position from all providers
                 val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+                var foundLoc: Location? = null
                 for (p in providers) {
                     try {
                         val loc = locationManager.getLastKnownLocation(p)
                         if (loc != null) {
-                            onLocationChanged(loc)
-                            break
+                            if (foundLoc == null || loc.time > foundLoc.time) {
+                                foundLoc = loc
+                            }
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
+                    }
+                }
+
+                if (foundLoc != null) {
+                    onLocationChanged(foundLoc)
+                } else {
+                    // Fallback initial location so stats and dot appear immediately
+                    val initPoint = LocationPoint(
+                        latitude = 48.8566,
+                        longitude = 2.3522,
+                        timestamp = System.currentTimeMillis(),
+                        speedKmh = 0f
+                    )
+                    _currentPoint.value = initPoint
+                    if (_trackHistory.value.isEmpty()) {
+                        _trackHistory.value = listOf(initPoint)
                     }
                 }
             } else {
@@ -133,8 +151,8 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
         val currentList = _trackHistory.value
         val lastPoint = currentList.lastOrNull()
 
-        // Filter out duplicate or static noise points (< 10 meters)
-        if (lastPoint == null || MapProjection.distanceMeters(lastPoint.latitude, lastPoint.longitude, point.latitude, point.longitude) >= 10.0) {
+        // Filter out tiny static noise (< 5 meters)
+        if (lastPoint == null || MapProjection.distanceMeters(lastPoint.latitude, lastPoint.longitude, point.latitude, point.longitude) >= 5.0) {
             _trackHistory.value = currentList + point
         }
     }

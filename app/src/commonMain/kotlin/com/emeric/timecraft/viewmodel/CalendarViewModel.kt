@@ -3,8 +3,10 @@ package com.emeric.timecraft.viewmodel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.emeric.timecraft.model.WorkDay
+import com.emeric.timecraft.getPlatform
+import com.emeric.timecraft.getSettingsStorage
 import com.emeric.timecraft.model.DayType
+import com.emeric.timecraft.model.WorkDay
 import com.emeric.timecraft.network.supabase
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
@@ -14,11 +16,18 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.*
-import com.emeric.timecraft.getPlatform
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class CalendarViewModel {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val storage = getSettingsStorage()
+
+    private val jsonParser = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+        isLenient = true
+    }
 
     var currentMonth by mutableStateOf(
         getPlatform().getCurrentLocalDate().let { LocalDate(it.year, it.month, 1) }
@@ -29,11 +38,32 @@ class CalendarViewModel {
         private set
 
     init {
+        workDays = loadLocalWorkDays()
         fetchDays()
     }
 
     fun refresh() {
         fetchDays()
+    }
+
+    private fun loadLocalWorkDays(): Map<LocalDate, WorkDay> {
+        val jsonStr = storage.getString("cached_work_days", "")
+        if (jsonStr.isBlank()) return emptyMap()
+        return try {
+            val list = jsonParser.decodeFromString<List<WorkDay>>(jsonStr)
+            list.associateBy { it.date }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun saveLocalWorkDays(map: Map<LocalDate, WorkDay>) {
+        try {
+            val jsonStr = jsonParser.encodeToString(map.values.toList())
+            storage.setString("cached_work_days", jsonStr)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun onPreviousMonth() {
@@ -69,18 +99,14 @@ class CalendarViewModel {
                         }.data
                 }
 
-                val jsonParser = Json {
-                    ignoreUnknownKeys = true
-                    coerceInputValues = true
-                    isLenient = true
-                }
-
                 val results = withContext(Dispatchers.Default) {
                     jsonParser.decodeFromString<List<WorkDay>>(rawData)
                 }
 
-                // Update Compose state on Main UI thread
-                workDays = results.associateBy { it.date }
+                val fetchedMap = results.associateBy { it.date }
+                val merged = workDays + fetchedMap
+                workDays = merged
+                saveLocalWorkDays(merged)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -94,11 +120,12 @@ class CalendarViewModel {
             null
         } ?: return
         
-        // Ensure we preserve the ID if we already know it for this date
         val existingId = workDays[workDay.date]?.id
         val finalWorkDay = workDay.copy(userId = userId, id = existingId)
         
-        workDays = workDays + (finalWorkDay.date to finalWorkDay)
+        val updatedMap = workDays + (finalWorkDay.date to finalWorkDay)
+        workDays = updatedMap
+        saveLocalWorkDays(updatedMap)
 
         scope.launch {
             try {
@@ -119,7 +146,10 @@ class CalendarViewModel {
         } catch (e: Exception) {
             null
         } ?: return
-        workDays = workDays - date
+        
+        val updatedMap = workDays - date
+        workDays = updatedMap
+        saveLocalWorkDays(updatedMap)
 
         scope.launch {
             try {

@@ -13,3 +13,20 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Signatures & Clés de sécurité (Secrets)
+*.keystore
+*.jks
+*.p12
+*.pepk
+*.pk8
+*.pem
+service_account*.json
+play_account*.json
+google-services.json
+
+# Binaires de build & release
+/app/build
+/app/release
+*.apk
+*.aab

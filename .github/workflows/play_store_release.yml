@@ -2,7 +2,7 @@ name: Play Store Release
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:

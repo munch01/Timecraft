@@ -12,6 +12,8 @@ interface Platform {
 interface SettingsStorage {
     fun getBoolean(key: String, defaultValue: Boolean): Boolean
     fun setBoolean(key: String, value: Boolean)
+    fun getString(key: String, defaultValue: String): String
+    fun setString(key: String, value: String)
 }
 
 expect fun getPlatform(): Platform

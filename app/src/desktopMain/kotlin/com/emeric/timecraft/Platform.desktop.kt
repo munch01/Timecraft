@@ -31,6 +31,10 @@ class DesktopSettingsStorage : SettingsStorage {
     override fun setBoolean(key: String, value: Boolean) {
         prefs.putBoolean(key, value)
     }
+    override fun getString(key: String, defaultValue: String): String = prefs.get(key, defaultValue)
+    override fun setString(key: String, value: String) {
+        prefs.put(key, value)
+    }
 }
 
 actual fun getPlatform(): Platform = DesktopPlatform()

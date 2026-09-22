@@ -200,6 +200,124 @@ fun SettingsScreen(
                 }
 
                 Text(
+                    text = "Horaires par défaut (par jour)",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            "Configurez vos horaires habituels pour chaque jour de la semaine (utilisés pour pré-remplir la journée et calculer les heures supplémentaires).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+
+                        var daySchedules by remember {
+                            mutableStateOf(
+                                com.emeric.timecraft.model.DefaultSchedules.defaultDays.map { defaultItem ->
+                                    com.emeric.timecraft.model.DefaultSchedules.getScheduleForDay(defaultItem.dayOfWeekName, settingsStorage)
+                                }
+                            )
+                        }
+
+                        daySchedules.forEachIndexed { index, item ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F8)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(item.label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge, color = Color(0xFF1A3A5A))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(if (item.isWorkDay) "Travaillé" else "Repos", style = MaterialTheme.typography.bodySmall, color = if (item.isWorkDay) Color(0xFF1A3A5A) else Color.Gray)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Switch(
+                                                checked = item.isWorkDay,
+                                                onCheckedChange = { isChecked ->
+                                                    val updated = item.copy(isWorkDay = isChecked)
+                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
+                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    if (item.isWorkDay) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedTextField(
+                                                value = item.morningStart,
+                                                onValueChange = { newVal ->
+                                                    val updated = item.copy(morningStart = newVal)
+                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
+                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                                },
+                                                label = { Text("Matin début") },
+                                                modifier = Modifier.weight(1f),
+                                                singleLine = true
+                                            )
+                                            OutlinedTextField(
+                                                value = item.morningEnd,
+                                                onValueChange = { newVal ->
+                                                    val updated = item.copy(morningEnd = newVal)
+                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
+                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                                },
+                                                label = { Text("Matin fin") },
+                                                modifier = Modifier.weight(1f),
+                                                singleLine = true
+                                            )
+                                        }
+
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedTextField(
+                                                value = item.afternoonStart,
+                                                onValueChange = { newVal ->
+                                                    val updated = item.copy(afternoonStart = newVal)
+                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
+                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                                },
+                                                label = { Text("A.M. début") },
+                                                modifier = Modifier.weight(1f),
+                                                singleLine = true
+                                            )
+                                            OutlinedTextField(
+                                                value = item.afternoonEnd,
+                                                onValueChange = { newVal ->
+                                                    val updated = item.copy(afternoonEnd = newVal)
+                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
+                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                                },
+                                                label = { Text("A.M. fin") },
+                                                modifier = Modifier.weight(1f),
+                                                singleLine = true
+                                            )
+                                        }
+
+                                        val targetHrs = item.calculateTargetHours()
+                                        if (targetHrs > 0) {
+                                            val h = targetHrs.toInt()
+                                            val m = ((targetHrs - h) * 60).toInt()
+                                            val formatted = if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
+                                            Text("Durée prévue : $formatted", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A3A5A))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text(
                     text = "Préférences",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,

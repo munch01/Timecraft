@@ -2,8 +2,11 @@ package com.emeric.timecraft.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlinx.datetime.LocalDate
 import androidx.compose.ui.graphics.Color
+import com.emeric.timecraft.SettingsStorage
 
 @Serializable
 enum class DayType(val label: String, val colorHex: String) {
@@ -26,6 +29,78 @@ private fun parseColor(colorString: String): Int {
         return color.toInt()
     }
     throw IllegalArgumentException("Unknown color")
+}
+
+@Serializable
+data class DayScheduleConfig(
+    val dayOfWeekName: String,
+    val label: String,
+    val morningStart: String = "08:00",
+    val morningEnd: String = "12:00",
+    val afternoonStart: String = "13:30",
+    val afternoonEnd: String = "17:30",
+    val isWorkDay: Boolean = true
+) {
+    fun calculateTargetHours(): Double {
+        if (!isWorkDay) return 0.0
+        fun parseMinutes(timeStr: String): Int? {
+            val clean = timeStr.trim().replace("h", ":").replace("H", ":")
+            val parts = clean.split(":")
+            if (parts.size != 2) return null
+            val h = parts[0].trim().toIntOrNull() ?: return null
+            val m = parts[1].trim().toIntOrNull() ?: return null
+            return h * 60 + m
+        }
+
+        val mStart = parseMinutes(morningStart)
+        val mEnd = parseMinutes(morningEnd)
+        val aStart = parseMinutes(afternoonStart)
+        val aEnd = parseMinutes(afternoonEnd)
+
+        var totalMinutes = 0
+        if (mStart != null && mEnd != null && mEnd > mStart) {
+            totalMinutes += (mEnd - mStart)
+        }
+        if (aStart != null && aEnd != null && aEnd > aStart) {
+            totalMinutes += (aEnd - aStart)
+        }
+        return totalMinutes / 60.0
+    }
+
+    fun formattedTargetHours(): String {
+        val hrs = calculateTargetHours()
+        val h = hrs.toInt()
+        val m = ((hrs - h) * 60).toInt()
+        return if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
+    }
+}
+
+object DefaultSchedules {
+    val defaultDays = listOf(
+        DayScheduleConfig("MONDAY", "Lundi", "08:00", "12:00", "13:30", "17:30", true),
+        DayScheduleConfig("TUESDAY", "Mardi", "08:00", "12:00", "13:30", "17:30", true),
+        DayScheduleConfig("WEDNESDAY", "Mercredi", "08:00", "12:00", "13:30", "17:30", true),
+        DayScheduleConfig("THURSDAY", "Jeudi", "08:00", "12:00", "13:30", "17:30", true),
+        DayScheduleConfig("FRIDAY", "Vendredi", "08:00", "12:00", "13:30", "16:30", true),
+        DayScheduleConfig("SATURDAY", "Samedi", "08:00", "12:00", "", "", false),
+        DayScheduleConfig("SUNDAY", "Dimanche", "", "", "", "", false)
+    )
+
+    fun getScheduleForDay(dayName: String, storage: SettingsStorage): DayScheduleConfig {
+        val defaultItem = defaultDays.firstOrNull { it.dayOfWeekName == dayName } ?: defaultDays.first()
+        val jsonString = storage.getString("schedule_$dayName", "")
+        if (jsonString.isBlank()) return defaultItem
+        return try {
+            Json.decodeFromString<DayScheduleConfig>(jsonString)
+        } catch (e: Exception) {
+            defaultItem
+        }
+    }
+
+    fun saveScheduleForDay(config: DayScheduleConfig, storage: SettingsStorage) {
+        val jsonString = Json.encodeToString(DayScheduleConfig.serializer(), config)
+        storage.setString("schedule_${config.dayOfWeekName}", jsonString)
+    }
 }
 
 @Serializable

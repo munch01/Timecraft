@@ -16,8 +16,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.emeric.timecraft.getSettingsStorage
 import com.emeric.timecraft.model.ClientSchedule
 import com.emeric.timecraft.model.DayType
+import com.emeric.timecraft.model.DefaultSchedules
 import com.emeric.timecraft.model.Expense
 import com.emeric.timecraft.model.WorkDay
 import kotlinx.datetime.LocalDate
@@ -32,6 +34,10 @@ fun DayDetailScreen(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val settingsStorage = remember { getSettingsStorage() }
+    val dayOfWeekName = date.dayOfWeek.name
+    val defaultConfig = remember(date) { DefaultSchedules.getScheduleForDay(dayOfWeekName, settingsStorage) }
+
     var selectedType by remember { mutableStateOf(initialWorkDay?.type ?: DayType.WORKED) }
     
     var clientSchedules by remember {
@@ -39,7 +45,25 @@ fun DayDetailScreen(
             if (initialWorkDay != null && initialWorkDay.clientSchedules.isNotEmpty()) {
                 initialWorkDay.clientSchedules
             } else if (initialWorkDay != null && initialWorkDay.clients.isNotEmpty()) {
-                initialWorkDay.clients.map { ClientSchedule(clientName = it) }
+                initialWorkDay.clients.map {
+                    ClientSchedule(
+                        clientName = it,
+                        morningStart = defaultConfig.morningStart,
+                        morningEnd = defaultConfig.morningEnd,
+                        afternoonStart = defaultConfig.afternoonStart,
+                        afternoonEnd = defaultConfig.afternoonEnd
+                    )
+                }
+            } else if (defaultConfig.isWorkDay) {
+                listOf(
+                    ClientSchedule(
+                        clientName = "",
+                        morningStart = defaultConfig.morningStart,
+                        morningEnd = defaultConfig.morningEnd,
+                        afternoonStart = defaultConfig.afternoonStart,
+                        afternoonEnd = defaultConfig.afternoonEnd
+                    )
+                )
             } else {
                 emptyList()
             }
@@ -55,7 +79,7 @@ fun DayDetailScreen(
         containerColor = Color(0xFFE8ECEF),
         topBar = {
             TopAppBar(
-                title = { Text("${date.dayOfMonth}/${date.monthNumber}/${date.year}", fontWeight = FontWeight.Bold) },
+                title = { Text("${date.dayOfMonth}/${date.monthNumber}/${date.year} (${defaultConfig.label})", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
@@ -119,19 +143,51 @@ fun DayDetailScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("Clients & Horaires de travail", fontWeight = FontWeight.Bold)
-                            val totalHours = clientSchedules.sumOf { it.calculateHours() }
-                            if (totalHours > 0) {
-                                val h = totalHours.toInt()
-                                val m = ((totalHours - h) * 60).toInt()
-                                val formatted = if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
-                                Text("Total journée : $formatted", style = MaterialTheme.typography.bodySmall, color = Color(0xFF1A3A5A), fontWeight = FontWeight.Bold)
+                            
+                            val actualHours = clientSchedules.sumOf { it.calculateHours() }
+                            val targetHours = defaultConfig.calculateTargetHours()
+                            val diffHours = actualHours - targetHours
+
+                            val formatH = { hrs: Double ->
+                                val absHrs = kotlin.math.abs(hrs)
+                                val h = absHrs.toInt()
+                                val m = ((absHrs - h) * 60).toInt()
+                                if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
+                            }
+
+                            if (actualHours > 0 || targetHours > 0) {
+                                Text(
+                                    "Total : ${formatH(actualHours)} (Prévu ${defaultConfig.label} : ${formatH(targetHours)})",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF1A3A5A),
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                if (defaultConfig.isWorkDay && targetHours > 0) {
+                                    val overText = when {
+                                        diffHours > 0.01 -> "+${formatH(diffHours)} (Heures supplémentaires)"
+                                        diffHours < -0.01 -> "-${formatH(diffHours)} (Heures manquantes)"
+                                        else -> "Conforme aux horaires prévus"
+                                    }
+                                    val overColor = when {
+                                        diffHours > 0.01 -> Color(0xFF2E7D32)
+                                        diffHours < -0.01 -> Color(0xFFE65100)
+                                        else -> Color.Gray
+                                    }
+                                    Text(overText, style = MaterialTheme.typography.labelSmall, color = overColor, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
-                        Spacer(modifier = Modifier.weight(1f))
                         IconButton(onClick = {
-                            clientSchedules = clientSchedules + ClientSchedule()
+                            clientSchedules = clientSchedules + ClientSchedule(
+                                clientName = "",
+                                morningStart = defaultConfig.morningStart,
+                                morningEnd = defaultConfig.morningEnd,
+                                afternoonStart = defaultConfig.afternoonStart,
+                                afternoonEnd = defaultConfig.afternoonEnd
+                            )
                         }) {
                             Icon(Icons.Default.AddCircle, contentDescription = "Ajouter client", tint = Color(0xFF1A3A5A))
                         }

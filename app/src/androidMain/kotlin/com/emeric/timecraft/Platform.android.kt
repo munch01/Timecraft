@@ -50,6 +50,8 @@ class AndroidSettingsStorage(private val context: Context) : SettingsStorage {
     private val prefs = context.getSharedPreferences("timecraft_prefs", Context.MODE_PRIVATE)
     override fun getBoolean(key: String, defaultValue: Boolean): Boolean = prefs.getBoolean(key, defaultValue)
     override fun setBoolean(key: String, value: Boolean) = prefs.edit().putBoolean(key, value).apply()
+    override fun getString(key: String, defaultValue: String): String = prefs.getString(key, defaultValue) ?: defaultValue
+    override fun setString(key: String, value: String) = prefs.edit().putString(key, value).apply()
 }
 
 lateinit var appContext: Context

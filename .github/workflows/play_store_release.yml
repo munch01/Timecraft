@@ -29,18 +29,20 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew :app:bundleRelease --stacktrace
+        run: ./gradlew :app:bundleRelease :app:assembleRelease --stacktrace
         env:
           KEYSTORE_PATH: release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload Build Artifact
+      - name: Upload Build Artifacts (AAB & APK)
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: app/build/outputs/bundle/release/app-release.aab
+          name: app-release-files
+          path: |
+            app/build/outputs/bundle/release/app-release.aab
+            app/build/outputs/apk/release/*.apk
 
       - name: Upload to Play Store
         uses: r0adkll/upload-google-play@v1

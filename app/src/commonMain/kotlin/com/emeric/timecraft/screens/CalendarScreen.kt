@@ -111,6 +111,12 @@ fun CalendarScreen(
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
                 shape = RoundedCornerShape(16.dp)
             ) {
+                val monthDays = viewModel.workDays.values.filter {
+                    it.date.month == currentMonth.month && it.date.year == currentMonth.year && it.type == com.emeric.timecraft.model.DayType.WORKED
+                }
+                val totalDaysCount = monthDays.size
+                val totalHoursWorked = monthDays.sumOf { it.totalWorkedHours() }
+
                 Row(
                     modifier = Modifier.padding(16.dp).fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -118,7 +124,14 @@ fun CalendarScreen(
                 ) {
                     Column {
                         Text("Jours travaillés", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("${viewModel.workDays.values.count { it.date.month == currentMonth.month && it.date.year == currentMonth.year && it.type == com.emeric.timecraft.model.DayType.WORKED }} jours ce mois-ci", style = MaterialTheme.typography.bodySmall)
+                        if (totalHoursWorked > 0) {
+                            val h = totalHoursWorked.toInt()
+                            val m = ((totalHoursWorked - h) * 60).toInt()
+                            val formatted = if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
+                            Text("$totalDaysCount jours ($formatted travaillées)", style = MaterialTheme.typography.bodySmall, color = Color(0xFF1A3A5A), fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Text("$totalDaysCount jours ce mois-ci", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                     
                     Box(
@@ -128,7 +141,7 @@ fun CalendarScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = viewModel.workDays.values.count { it.date.month == currentMonth.month && it.date.year == currentMonth.year && it.type == com.emeric.timecraft.model.DayType.WORKED }.toString(),
+                            text = totalDaysCount.toString(),
                             fontWeight = FontWeight.Black,
                             color = Color(0xFF1A3A5A)
                         )

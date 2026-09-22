@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.emeric.timecraft.model.ClientSchedule
 import com.emeric.timecraft.model.DayType
 import com.emeric.timecraft.model.Expense
 import com.emeric.timecraft.model.WorkDay
@@ -32,7 +33,19 @@ fun DayDetailScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedType by remember { mutableStateOf(initialWorkDay?.type ?: DayType.WORKED) }
-    var clients by remember { mutableStateOf(initialWorkDay?.clients ?: emptyList<String>()) }
+    
+    var clientSchedules by remember {
+        mutableStateOf(
+            if (initialWorkDay != null && initialWorkDay.clientSchedules.isNotEmpty()) {
+                initialWorkDay.clientSchedules
+            } else if (initialWorkDay != null && initialWorkDay.clients.isNotEmpty()) {
+                initialWorkDay.clients.map { ClientSchedule(clientName = it) }
+            } else {
+                emptyList()
+            }
+        )
+    }
+
     var expenses by remember { mutableStateOf(initialWorkDay?.expenses ?: emptyList<Expense>()) }
     
     var showTypeMenu by remember { mutableStateOf(false) }
@@ -67,7 +80,6 @@ fun DayDetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ... (rest of the column content)
             Text("Type de journée", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
             
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -99,7 +111,7 @@ fun DayDetailScreen(
                 }
             }
 
-            // Section Clients
+            // Section Clients & Horaires
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
@@ -107,27 +119,117 @@ fun DayDetailScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("Clients", fontWeight = FontWeight.Bold)
+                        Column {
+                            Text("Clients & Horaires de travail", fontWeight = FontWeight.Bold)
+                            val totalHours = clientSchedules.sumOf { it.calculateHours() }
+                            if (totalHours > 0) {
+                                val h = totalHours.toInt()
+                                val m = ((totalHours - h) * 60).toInt()
+                                val formatted = if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
+                                Text("Total journée : $formatted", style = MaterialTheme.typography.bodySmall, color = Color(0xFF1A3A5A), fontWeight = FontWeight.Bold)
+                            }
+                        }
                         Spacer(modifier = Modifier.weight(1f))
-                        IconButton(onClick = { clients = clients + "" }) {
-                            Icon(Icons.Default.AddCircle, contentDescription = "Ajouter", tint = Color(0xFF1A3A5A))
+                        IconButton(onClick = {
+                            clientSchedules = clientSchedules + ClientSchedule()
+                        }) {
+                            Icon(Icons.Default.AddCircle, contentDescription = "Ajouter client", tint = Color(0xFF1A3A5A))
                         }
                     }
-                    
-                    clients.forEachIndexed { index, client ->
-                        OutlinedTextField(
-                            value = client,
-                            onValueChange = { newValue ->
-                                clients = clients.toMutableList().apply { set(index, newValue) }
-                            },
-                            label = { Text("Nom du client ${index + 1}") },
+
+                    if (clientSchedules.isEmpty()) {
+                        Text("Aucun client saisi. Cliquez sur + pour ajouter un client et ses horaires.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+
+                    clientSchedules.forEachIndexed { index, item ->
+                        Card(
                             modifier = Modifier.fillMaxWidth(),
-                            trailingIcon = {
-                                IconButton(onClick = { clients = clients.filterIndexed { i, _ -> i != index } }) {
-                                    Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Supprimer")
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F8)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    OutlinedTextField(
+                                        value = item.clientName,
+                                        onValueChange = { newName ->
+                                            clientSchedules = clientSchedules.toMutableList().apply {
+                                                set(index, item.copy(clientName = newName))
+                                            }
+                                        },
+                                        label = { Text("Nom du client ${index + 1}") },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                    IconButton(onClick = {
+                                        clientSchedules = clientSchedules.filterIndexed { i, _ -> i != index }
+                                    }) {
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+
+                                Text("Matin", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = item.morningStart,
+                                        onValueChange = {
+                                            clientSchedules = clientSchedules.toMutableList().apply {
+                                                set(index, item.copy(morningStart = it))
+                                            }
+                                        },
+                                        label = { Text("Début") },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                    OutlinedTextField(
+                                        value = item.morningEnd,
+                                        onValueChange = {
+                                            clientSchedules = clientSchedules.toMutableList().apply {
+                                                set(index, item.copy(morningEnd = it))
+                                            }
+                                        },
+                                        label = { Text("Fin") },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                }
+
+                                Text("Après-midi", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = item.afternoonStart,
+                                        onValueChange = {
+                                            clientSchedules = clientSchedules.toMutableList().apply {
+                                                set(index, item.copy(afternoonStart = it))
+                                            }
+                                        },
+                                        label = { Text("Début") },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                    OutlinedTextField(
+                                        value = item.afternoonEnd,
+                                        onValueChange = {
+                                            clientSchedules = clientSchedules.toMutableList().apply {
+                                                set(index, item.copy(afternoonEnd = it))
+                                            }
+                                        },
+                                        label = { Text("Fin") },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                }
+
+                                val itemHours = item.formattedHours()
+                                if (item.calculateHours() > 0) {
+                                    Text(
+                                        "Durée travaillée pour ce client : $itemHours",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF1A3A5A)
+                                    )
                                 }
                             }
-                        )
+                        }
                     }
                 }
             }
@@ -182,13 +284,16 @@ fun DayDetailScreen(
 
             Button(
                 onClick = {
+                    val validSchedules = clientSchedules.filter { it.clientName.isNotBlank() || it.calculateHours() > 0 }
+                    val clientNames = validSchedules.map { it.clientName }.filter { it.isNotBlank() }
                     onSave(
                         WorkDay(
                             userId = "", // Handled by VM
                             date = date,
                             type = selectedType,
                             isWorked = selectedType == DayType.WORKED,
-                            clients = clients.filter { it.isNotBlank() },
+                            clients = clientNames,
+                            clientSchedules = validSchedules,
                             expenses = expenses.filter { it.description.isNotBlank() || it.amount > 0 }
                         )
                     )

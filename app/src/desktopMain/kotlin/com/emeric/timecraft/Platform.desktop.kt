@@ -25,4 +25,13 @@ class DesktopPlatform : Platform {
     }
 }
 
+class DesktopSettingsStorage : SettingsStorage {
+    private val prefs = java.util.prefs.Preferences.userNodeForPackage(DesktopSettingsStorage::class.java)
+    override fun getBoolean(key: String, defaultValue: Boolean): Boolean = prefs.getBoolean(key, defaultValue)
+    override fun setBoolean(key: String, value: Boolean) {
+        prefs.putBoolean(key, value)
+    }
+}
+
 actual fun getPlatform(): Platform = DesktopPlatform()
+actual fun getSettingsStorage(): SettingsStorage = DesktopSettingsStorage()

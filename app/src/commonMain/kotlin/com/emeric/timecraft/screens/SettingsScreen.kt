@@ -22,7 +22,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.emeric.timecraft.getBiometryManager
 import com.emeric.timecraft.getPlatform
+import com.emeric.timecraft.getSettingsStorage
 import com.emeric.timecraft.network.supabase
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.user.UserUpdateBuilder
@@ -38,9 +40,13 @@ fun SettingsScreen(
     onLogout: () -> Unit
 ) {
     val platform = getPlatform()
+    val settingsStorage = remember { getSettingsStorage() }
+    val biometryManager = remember { getBiometryManager() }
     val coroutineScope = rememberCoroutineScope()
     val currentUser = supabase.auth.currentSessionOrNull()?.user
     val appVersion = "1.0.2"
+
+    var isBiometricEnabled by remember { mutableStateOf(settingsStorage.getBoolean("biometric_enabled", false)) }
 
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
@@ -143,9 +149,43 @@ fun SettingsScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Icon(Icons.Default.Fingerprint, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                Text("Verrouillage biométrique", fontWeight = FontWeight.SemiBold)
+                                Column {
+                                    Text("Verrouillage biométrique", fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        if (isBiometricEnabled) "Activé au démarrage" else "Désactivé",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
+                                }
                             }
-                            Switch(checked = true, onCheckedChange = {}) 
+                            Switch(
+                                checked = isBiometricEnabled,
+                                onCheckedChange = { enable ->
+                                    if (enable) {
+                                        if (biometryManager != null && biometryManager.canAuthenticate()) {
+                                            biometryManager.authenticate(
+                                                title = "Confirmation biométrique",
+                                                subtitle = "Validez pour activer le verrouillage biométrique",
+                                                negativeButtonText = "Annuler",
+                                                onSuccess = {
+                                                    settingsStorage.setBoolean("biometric_enabled", true)
+                                                    isBiometricEnabled = true
+                                                    platform.showToast("Verrouillage biométrique activé")
+                                                },
+                                                onError = { err ->
+                                                    platform.showToast("Erreur : $err")
+                                                }
+                                            )
+                                        } else {
+                                            platform.showToast("La biométrie n'est pas disponible ou configurée sur cet appareil")
+                                        }
+                                    } else {
+                                        settingsStorage.setBoolean("biometric_enabled", false)
+                                        isBiometricEnabled = false
+                                        platform.showToast("Verrouillage biométrique désactivé")
+                                    }
+                                }
+                            ) 
                         }
 
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))

@@ -46,7 +46,14 @@ class AndroidPlatform(private val context: Context) : Platform {
     }
 }
 
+class AndroidSettingsStorage(private val context: Context) : SettingsStorage {
+    private val prefs = context.getSharedPreferences("timecraft_prefs", Context.MODE_PRIVATE)
+    override fun getBoolean(key: String, defaultValue: Boolean): Boolean = prefs.getBoolean(key, defaultValue)
+    override fun setBoolean(key: String, value: Boolean) = prefs.edit().putBoolean(key, value).apply()
+}
+
 lateinit var appContext: Context
 var currentActivity: androidx.fragment.app.FragmentActivity? = null
 
 actual fun getPlatform(): Platform = AndroidPlatform(appContext)
+actual fun getSettingsStorage(): SettingsStorage = AndroidSettingsStorage(appContext)

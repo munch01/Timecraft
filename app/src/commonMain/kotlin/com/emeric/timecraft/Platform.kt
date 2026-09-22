@@ -9,4 +9,10 @@ interface Platform {
     fun getCurrentLocalDate(): kotlinx.datetime.LocalDate
 }
 
+interface SettingsStorage {
+    fun getBoolean(key: String, defaultValue: Boolean): Boolean
+    fun setBoolean(key: String, value: Boolean)
+}
+
 expect fun getPlatform(): Platform
+expect fun getSettingsStorage(): SettingsStorage

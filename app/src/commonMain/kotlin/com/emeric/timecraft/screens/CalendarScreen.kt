@@ -6,13 +6,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +31,11 @@ fun CalendarScreen(
     onDayClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Automatically refresh data when calendar screen appears
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
+    }
+
     val currentMonth = viewModel.currentMonth
     val days = DateTimeUtils.getDaysInMonth(currentMonth.year, currentMonth.month)
 
@@ -41,7 +46,8 @@ fun CalendarScreen(
                 title = {
                     Text(
                         text = "${DateTimeUtils.getMonthName(currentMonth.month)} ${currentMonth.year}",
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
                     )
                 },
                 navigationIcon = {
@@ -62,32 +68,37 @@ fun CalendarScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             // Jours de la semaine
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceAround) {
                 listOf("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim").forEach {
-                    Text(it, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color.Gray)
+                    Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
+            // Enlarged Calendar Card taking full available height
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(bottom = 80.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.92f)),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(7),
-                    modifier = Modifier.padding(8.dp).height(350.dp),
-                    contentPadding = PaddingValues(4.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    contentPadding = PaddingValues(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Empty spaces for the first day offset
                     val firstDayOfWeek = days.first().dayOfWeek.ordinal // 0 = Monday
                     items(firstDayOfWeek) {
-                        Box(modifier = Modifier.size(40.dp))
+                        Box(modifier = Modifier.aspectRatio(1f))
                     }
 
                     items(days) { date ->
@@ -98,52 +109,6 @@ fun CalendarScreen(
                             onClick = { 
                                 onDayClick(date)
                             }
-                        )
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Statistiques du mois
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                val monthDays = viewModel.workDays.values.filter {
-                    it.date.month == currentMonth.month && it.date.year == currentMonth.year && it.type == com.emeric.timecraft.model.DayType.WORKED
-                }
-                val totalDaysCount = monthDays.size
-                val totalHoursWorked = monthDays.sumOf { it.totalWorkedHours() }
-
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Jours travaillés", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        if (totalHoursWorked > 0) {
-                            val h = totalHoursWorked.toInt()
-                            val m = ((totalHoursWorked - h) * 60).toInt()
-                            val formatted = if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
-                            Text("$totalDaysCount jours ($formatted travaillées)", style = MaterialTheme.typography.bodySmall, color = Color(0xFF1A3A5A), fontWeight = FontWeight.SemiBold)
-                        } else {
-                            Text("$totalDaysCount jours ce mois-ci", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .background(Color(0xFFE8ECEF), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = totalDaysCount.toString(),
-                            fontWeight = FontWeight.Black,
-                            color = Color(0xFF1A3A5A)
                         )
                     }
                 }
@@ -159,23 +124,33 @@ fun DayItem(
     onClick: () -> Unit
 ) {
     val isMarked = workDay != null
-    val bgColor = workDay?.type?.getColor() ?: Color.Transparent
+    val bgColor = workDay?.type?.getColor() ?: Color(0xFFF4F6F8)
     val textColor = if (isMarked) Color.White else Color.Black
 
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .padding(4.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(bgColor)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = date.dayOfMonth.toString(),
-            color = textColor,
-            fontWeight = if (isMarked) FontWeight.Bold else FontWeight.Normal,
-            fontSize = 14.sp
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text(
+                text = date.dayOfMonth.toString(),
+                color = textColor,
+                fontWeight = if (isMarked) FontWeight.Bold else FontWeight.Medium,
+                fontSize = 16.sp
+            )
+            if (isMarked && workDay.totalWorkedHours() > 0) {
+                val totalH = workDay.formattedTotalHours()
+                Text(
+                    text = totalH,
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
     }
 }

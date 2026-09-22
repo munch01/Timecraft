@@ -2,7 +2,6 @@ package com.emeric.timecraft.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -15,8 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -26,27 +25,94 @@ import androidx.compose.ui.unit.sp
 import com.emeric.timecraft.LocationPoint
 import com.emeric.timecraft.MapProjection
 import com.emeric.timecraft.getLocationTracker
+import com.emeric.timecraft.getPlatform
+import com.emeric.timecraft.getSettingsStorage
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsBytes
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.decodeToImageBitmap
+
+class TileCache {
+    private val httpClient = HttpClient()
+    private val memoryCache = mutableMapOf<String, ImageBitmap>()
+
+    suspend fun getTile(zoom: Int, tileX: Int, tileY: Int): ImageBitmap? {
+        val key = "$zoom/$tileX/$tileY"
+        memoryCache[key]?.let { return it }
+
+        return try {
+            val url = "https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
+            val response = httpClient.get(url) {
+                header("User-Agent", "TimeCraftApp/1.0 (Android; Kotlin)")
+            }
+            if (response.status.value == 200) {
+                val bytes = response.bodyAsBytes()
+                @OptIn(org.jetbrains.compose.resources.ExperimentalResourceApi::class)
+                val bitmap = bytes.decodeToImageBitmap()
+                memoryCache[key] = bitmap
+                bitmap
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
 
 @Composable
 fun MapScreen(
     modifier: Modifier = Modifier
 ) {
     val locationTracker = remember { getLocationTracker() }
+    val platform = remember { getPlatform() }
+    val settingsStorage = remember { getSettingsStorage() }
+    val tileCache = remember { TileCache() }
+    val coroutineScope = rememberCoroutineScope()
+
     val isTracking by locationTracker.isTracking.collectAsState()
     val currentPoint by locationTracker.currentPoint.collectAsState()
     val trackHistory by locationTracker.trackHistory.collectAsState()
 
     var mapCenterLat by remember { mutableStateOf(48.8566) } // Paris default
     var mapCenterLon by remember { mutableStateOf(2.3522) }
-    var zoomLevel by remember { mutableStateOf(14) } // Zoom 1 to 18
+    var zoomLevel by remember { mutableStateOf(14) } // Zoom 3 to 18
 
-    // Auto-center map on first point or when tracking starts
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    var hasAskedPermission by remember { mutableStateOf(settingsStorage.getBoolean("gps_permission_asked", false)) }
+
+    val activeTiles = remember { mutableStateMapOf<String, ImageBitmap>() }
+
+    // Auto-center map on current position when available
     LaunchedEffect(currentPoint) {
         currentPoint?.let {
             if (trackHistory.size <= 1) {
                 mapCenterLat = it.latitude
                 mapCenterLon = it.longitude
+            }
+        }
+    }
+
+    // Load OpenStreetMap tiles around map center
+    LaunchedEffect(mapCenterLat, mapCenterLon, zoomLevel) {
+        val centerTileX = MapProjection.lonToTileX(mapCenterLon, zoomLevel).toInt()
+        val centerTileY = MapProjection.latToTileY(mapCenterLat, zoomLevel).toInt()
+
+        for (dx in -2..2) {
+            for (dy in -2..2) {
+                val tx = centerTileX + dx
+                val ty = centerTileY + dy
+                val key = "$zoomLevel/$tx/$ty"
+                if (!activeTiles.containsKey(key)) {
+                    coroutineScope.launch {
+                        val bmp = tileCache.getTile(zoomLevel, tx, ty)
+                        if (bmp != null) {
+                            activeTiles[key] = bmp
+                        }
+                    }
+                }
             }
         }
     }
@@ -115,34 +181,34 @@ fun MapScreen(
                     return Offset(offsetX.toFloat(), offsetY.toFloat())
                 }
 
-                // Draw Grid Background lines (representing tile map coordinates)
-                val startX = (canvasWidth / 2.0 - centerTileX * 256.0) % 256.0
-                val startY = (canvasHeight / 2.0 - centerTileY * 256.0) % 256.0
+                // Draw OpenStreetMap Tiles
+                val baseTileX = centerTileX.toInt()
+                val baseTileY = centerTileY.toInt()
 
-                var x = startX
-                while (x < canvasWidth) {
-                    if (x >= 0) {
-                        drawLine(
-                            color = Color.LightGray.copy(alpha = 0.4f),
-                            start = Offset(x.toFloat(), 0f),
-                            end = Offset(x.toFloat(), canvasHeight),
-                            strokeWidth = 1f
-                        )
-                    }
-                    x += 256.0
-                }
+                for (dx in -3..3) {
+                    for (dy in -3..3) {
+                        val tx = baseTileX + dx
+                        val ty = baseTileY + dy
+                        val key = "$zoomLevel/$tx/$ty"
+                        val bmp = activeTiles[key]
 
-                var y = startY
-                while (y < canvasHeight) {
-                    if (y >= 0) {
-                        drawLine(
-                            color = Color.LightGray.copy(alpha = 0.4f),
-                            start = Offset(0f, y.toFloat()),
-                            end = Offset(canvasWidth, y.toFloat()),
-                            strokeWidth = 1f
-                        )
+                        val tileOffsetX = (tx - centerTileX) * 256.0 + (canvasWidth / 2.0)
+                        val tileOffsetY = (ty - centerTileY) * 256.0 + (canvasHeight / 2.0)
+
+                        if (bmp != null) {
+                            drawImage(
+                                image = bmp,
+                                dstOffset = androidx.compose.ui.unit.IntOffset(tileOffsetX.toInt(), tileOffsetY.toInt())
+                            )
+                        } else {
+                            // Draw Grid Placeholder
+                            drawRect(
+                                color = Color.LightGray.copy(alpha = 0.2f),
+                                topLeft = Offset(tileOffsetX.toFloat(), tileOffsetY.toFloat()),
+                                size = androidx.compose.ui.geometry.Size(256f, 256f)
+                            )
+                        }
                     }
-                    y += 256.0
                 }
 
                 // Draw Track History Polyline
@@ -156,37 +222,29 @@ fun MapScreen(
                         path.lineTo(pt.x, pt.y)
                     }
 
-                    // Draw Route Shadow
+                    // Route Shadow
                     drawPath(
                         path = path,
                         color = Color(0xFF003366).copy(alpha = 0.3f),
                         style = Stroke(width = 12f)
                     )
 
-                    // Draw Route Line
+                    // Route Main Line
                     drawPath(
                         path = path,
                         color = Color(0xFF1976D2),
                         style = Stroke(width = 6f)
                     )
 
-                    // Draw Waypoints
+                    // Waypoints
                     trackHistory.forEach { pt ->
                         val off = pointToOffset(pt.latitude, pt.longitude)
-                        drawCircle(
-                            color = Color.White,
-                            radius = 5f,
-                            center = off
-                        )
-                        drawCircle(
-                            color = Color(0xFF1976D2),
-                            radius = 3f,
-                            center = off
-                        )
+                        drawCircle(color = Color.White, radius = 5f, center = off)
+                        drawCircle(color = Color(0xFF1976D2), radius = 3f, center = off)
                     }
                 }
 
-                // Draw Start Point Marker
+                // Draw Start Marker
                 if (trackHistory.isNotEmpty()) {
                     val startPt = trackHistory.first()
                     val startOff = pointToOffset(startPt.latitude, startPt.longitude)
@@ -198,13 +256,13 @@ fun MapScreen(
                 currentPoint?.let { pt ->
                     val currOff = pointToOffset(pt.latitude, pt.longitude)
 
-                    // Pulsing Outer Ring
+                    // Pulsing Ring
                     drawCircle(
-                        color = Color(0xFF2196F3).copy(alpha = 0.3f),
+                        color = Color(0xFF2196F3).copy(alpha = 0.35f),
                         radius = 24f,
                         center = currOff
                     )
-                    // Inner Blue Circle
+                    // Inner Circle
                     drawCircle(
                         color = Color(0xFF1976D2),
                         radius = 12f,
@@ -244,7 +302,7 @@ fun MapScreen(
                         ) {}
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (isTracking) "Suivi de trajet actif (Optimisé batterie)" else "Suivi inactif",
+                            text = if (isTracking) "Suivi GPS actif (Arrière-plan)" else "Suivi inactif",
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (isTracking) Color(0xFF2E7D32) else Color(0xFFD32F2F)
@@ -293,7 +351,7 @@ fun MapScreen(
             }
         }
 
-        // Floating Control Bar (Zoom, Center, Start/Stop Tracking, Clear)
+        // Floating Control Bar
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -301,7 +359,6 @@ fun MapScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.End
         ) {
-            // Zoom In Button
             SmallFloatingActionButton(
                 onClick = { if (zoomLevel < 18) zoomLevel += 1 },
                 containerColor = Color.White,
@@ -310,7 +367,6 @@ fun MapScreen(
                 Icon(Icons.Default.Add, contentDescription = "Zoom +")
             }
 
-            // Zoom Out Button
             SmallFloatingActionButton(
                 onClick = { if (zoomLevel > 3) zoomLevel -= 1 },
                 containerColor = Color.White,
@@ -319,7 +375,6 @@ fun MapScreen(
                 Icon(Icons.Default.Remove, contentDescription = "Zoom -")
             }
 
-            // Center on Current Location
             SmallFloatingActionButton(
                 onClick = {
                     currentPoint?.let {
@@ -333,10 +388,11 @@ fun MapScreen(
                 Icon(Icons.Default.MyLocation, contentDescription = "Ma position")
             }
 
-            // Start / Stop Tracking FAB
             FloatingActionButton(
                 onClick = {
-                    if (isTracking) {
+                    if (!hasAskedPermission) {
+                        showPermissionDialog = true
+                    } else if (isTracking) {
                         locationTracker.stopTracking()
                     } else {
                         locationTracker.startTracking()
@@ -355,7 +411,6 @@ fun MapScreen(
                 }
             }
 
-            // Clear Track FAB
             if (trackHistory.isNotEmpty() && !isTracking) {
                 TextButton(
                     onClick = { locationTracker.clearHistory() },
@@ -367,5 +422,38 @@ fun MapScreen(
                 }
             }
         }
+    }
+
+    // Permission Explanation Dialog
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            icon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFF1A3A5A), modifier = Modifier.size(36.dp)) },
+            title = { Text("Autoriser la Géolocalisation", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("TimeCraft a besoin d'accéder à votre position GPS pour enregistrer vos trajets professionnels et calculer vos kilomètres parcourus.")
+                    Text("Le suivi continue en arrière-plan lorsque vous démarrez un trajet. Vos données restent 100% privées.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        settingsStorage.setBoolean("gps_permission_asked", true)
+                        hasAskedPermission = true
+                        showPermissionDialog = false
+                        locationTracker.startTracking()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A3A5A))
+                ) {
+                    Text("Autoriser & Démarrer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
     }
 }

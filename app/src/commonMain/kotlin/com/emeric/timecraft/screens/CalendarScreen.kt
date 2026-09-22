@@ -47,7 +47,7 @@ fun CalendarScreen(
                     Text(
                         text = "${DateTimeUtils.getMonthName(currentMonth.month)} ${currentMonth.year}",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp
+                        fontSize = 20.sp
                     )
                 },
                 navigationIcon = {
@@ -71,21 +71,29 @@ fun CalendarScreen(
                 .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             // Jours de la semaine
-            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceAround) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
                 listOf("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim").forEach {
-                    Text(it, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1A3A5A))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1A3A5A)
+                    )
                 }
             }
 
-            // Enlarged Calendar Card taking full available height with large day items
+            // Calendar Card taking available height
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .padding(bottom = 85.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f)),
-                shape = RoundedCornerShape(24.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(7),
@@ -98,7 +106,7 @@ fun CalendarScreen(
                 ) {
                     val firstDayOfWeek = days.first().dayOfWeek.ordinal // 0 = Monday
                     items(firstDayOfWeek) {
-                        Box(modifier = Modifier.fillMaxWidth().height(60.dp))
+                        Box(modifier = Modifier.fillMaxWidth().height(52.dp))
                     }
 
                     items(days) { date ->
@@ -124,43 +132,36 @@ fun DayItem(
     onClick: () -> Unit
 ) {
     val isMarked = workDay != null
-    val bgColor = workDay?.type?.getColor() ?: Color(0xFFF0F4F8)
-    val textColor = if (isMarked) Color.White else Color(0xFF1A3A5A)
+    val bgColor = workDay?.type?.getColor() ?: Color(0xFFF4F6F8)
+    val textColor = if (isMarked) Color.White else Color(0xFF2C3E50)
 
-    Box(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(bgColor)
+            .height(52.dp)
             .clickable { onClick() },
-        contentAlignment = Alignment.Center
+        shape = RoundedCornerShape(12.dp),
+        color = bgColor,
+        shadowElevation = if (isMarked) 2.dp else 0.dp
     ) {
         Column(
+            modifier = Modifier.padding(vertical = 4.dp, horizontal = 2.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = date.dayOfMonth.toString(),
                 color = textColor,
-                fontWeight = if (isMarked) FontWeight.Black else FontWeight.Bold,
-                fontSize = 20.sp
+                fontWeight = if (isMarked) FontWeight.Bold else FontWeight.SemiBold,
+                fontSize = 17.sp
             )
             if (isMarked && workDay.totalWorkedHours() > 0) {
-                val totalH = workDay.formattedTotalHours()
-                Surface(
-                    color = Color.Black.copy(alpha = 0.25f),
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.padding(top = 2.dp)
-                ) {
-                    Text(
-                        text = totalH,
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                    )
-                }
+                Text(
+                    text = workDay.formattedTotalHours(),
+                    color = Color.White.copy(alpha = 0.95f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }

@@ -200,7 +200,7 @@ fun SettingsScreen(
                 }
 
                 Text(
-                    text = "Horaires par défaut (par jour)",
+                    text = "Horaires par défaut par jour",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
@@ -212,10 +212,13 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
-                            "Configurez vos horaires habituels pour chaque jour de la semaine (utilisés pour pré-remplir la journée et calculer les heures supplémentaires).",
+                            "Sélectionnez un jour de la semaine dans le menu déroulant ci-dessous pour modifier ses horaires de référence.",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Gray
                         )
+
+                        var selectedDayIndex by remember { mutableStateOf(0) }
+                        var showDayDropdown by remember { mutableStateOf(false) }
 
                         var daySchedules by remember {
                             mutableStateOf(
@@ -225,91 +228,133 @@ fun SettingsScreen(
                             )
                         }
 
-                        daySchedules.forEachIndexed { index, item ->
-                            Card(
+                        val selectedSchedule = daySchedules[selectedDayIndex]
+
+                        // Menu déroulant pour le choix du jour
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { showDayDropdown = true },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F8)),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1A3A5A))
                             ) {
-                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(item.label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge, color = Color(0xFF1A3A5A))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(if (item.isWorkDay) "Travaillé" else "Repos", style = MaterialTheme.typography.bodySmall, color = if (item.isWorkDay) Color(0xFF1A3A5A) else Color.Gray)
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Switch(
-                                                checked = item.isWorkDay,
-                                                onCheckedChange = { isChecked ->
-                                                    val updated = item.copy(isWorkDay = isChecked)
-                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
-                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
-                                                }
-                                            )
+                                Text("Jour : ${selectedSchedule.label}", fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+
+                            DropdownMenu(
+                                expanded = showDayDropdown,
+                                onDismissRequest = { showDayDropdown = false },
+                                modifier = Modifier.fillMaxWidth(0.85f)
+                            ) {
+                                daySchedules.forEachIndexed { idx, item ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text(item.label, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                                                Text(
+                                                    if (item.isWorkDay) item.formattedTargetHours() else "Repos",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = Color.Gray
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            selectedDayIndex = idx
+                                            showDayDropdown = false
                                         }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Formulaire d'édition du jour sélectionné
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F8)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Configuration : ${selectedSchedule.label}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge, color = Color(0xFF1A3A5A))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(if (selectedSchedule.isWorkDay) "Travaillé" else "Repos", style = MaterialTheme.typography.bodySmall, color = if (selectedSchedule.isWorkDay) Color(0xFF1A3A5A) else Color.Gray)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Switch(
+                                            checked = selectedSchedule.isWorkDay,
+                                            onCheckedChange = { isChecked ->
+                                                val updated = selectedSchedule.copy(isWorkDay = isChecked)
+                                                daySchedules = daySchedules.toMutableList().apply { set(selectedDayIndex, updated) }
+                                                com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                            }
+                                        )
+                                    }
+                                }
+
+                                if (selectedSchedule.isWorkDay) {
+                                    Text("Plage du Matin", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                            value = selectedSchedule.morningStart,
+                                            onValueChange = { newVal ->
+                                                val updated = selectedSchedule.copy(morningStart = newVal)
+                                                daySchedules = daySchedules.toMutableList().apply { set(selectedDayIndex, updated) }
+                                                com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                            },
+                                            label = { Text("Début") },
+                                            modifier = Modifier.weight(1f),
+                                            singleLine = true
+                                        )
+                                        OutlinedTextField(
+                                            value = selectedSchedule.morningEnd,
+                                            onValueChange = { newVal ->
+                                                val updated = selectedSchedule.copy(morningEnd = newVal)
+                                                daySchedules = daySchedules.toMutableList().apply { set(selectedDayIndex, updated) }
+                                                com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                            },
+                                            label = { Text("Fin") },
+                                            modifier = Modifier.weight(1f),
+                                            singleLine = true
+                                        )
                                     }
 
-                                    if (item.isWorkDay) {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedTextField(
-                                                value = item.morningStart,
-                                                onValueChange = { newVal ->
-                                                    val updated = item.copy(morningStart = newVal)
-                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
-                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
-                                                },
-                                                label = { Text("Matin début") },
-                                                modifier = Modifier.weight(1f),
-                                                singleLine = true
-                                            )
-                                            OutlinedTextField(
-                                                value = item.morningEnd,
-                                                onValueChange = { newVal ->
-                                                    val updated = item.copy(morningEnd = newVal)
-                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
-                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
-                                                },
-                                                label = { Text("Matin fin") },
-                                                modifier = Modifier.weight(1f),
-                                                singleLine = true
-                                            )
-                                        }
+                                    Text("Plage de l'Après-midi", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                            value = selectedSchedule.afternoonStart,
+                                            onValueChange = { newVal ->
+                                                val updated = selectedSchedule.copy(afternoonStart = newVal)
+                                                daySchedules = daySchedules.toMutableList().apply { set(selectedDayIndex, updated) }
+                                                com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                            },
+                                            label = { Text("Début") },
+                                            modifier = Modifier.weight(1f),
+                                            singleLine = true
+                                        )
+                                        OutlinedTextField(
+                                            value = selectedSchedule.afternoonEnd,
+                                            onValueChange = { newVal ->
+                                                val updated = selectedSchedule.copy(afternoonEnd = newVal)
+                                                daySchedules = daySchedules.toMutableList().apply { set(selectedDayIndex, updated) }
+                                                com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
+                                            },
+                                            label = { Text("Fin") },
+                                            modifier = Modifier.weight(1f),
+                                            singleLine = true
+                                        )
+                                    }
 
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedTextField(
-                                                value = item.afternoonStart,
-                                                onValueChange = { newVal ->
-                                                    val updated = item.copy(afternoonStart = newVal)
-                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
-                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
-                                                },
-                                                label = { Text("A.M. début") },
-                                                modifier = Modifier.weight(1f),
-                                                singleLine = true
-                                            )
-                                            OutlinedTextField(
-                                                value = item.afternoonEnd,
-                                                onValueChange = { newVal ->
-                                                    val updated = item.copy(afternoonEnd = newVal)
-                                                    daySchedules = daySchedules.toMutableList().apply { set(index, updated) }
-                                                    com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
-                                                },
-                                                label = { Text("A.M. fin") },
-                                                modifier = Modifier.weight(1f),
-                                                singleLine = true
-                                            )
-                                        }
-
-                                        val targetHrs = item.calculateTargetHours()
-                                        if (targetHrs > 0) {
-                                            val h = targetHrs.toInt()
-                                            val m = ((targetHrs - h) * 60).toInt()
-                                            val formatted = if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
-                                            Text("Durée prévue : $formatted", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A3A5A))
-                                        }
+                                    val targetHrs = selectedSchedule.calculateTargetHours()
+                                    if (targetHrs > 0) {
+                                        val h = targetHrs.toInt()
+                                        val m = ((targetHrs - h) * 60).toInt()
+                                        val formatted = if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
+                                        Text("Durée référence pour ${selectedSchedule.label} : $formatted", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
                                     }
                                 }
                             }

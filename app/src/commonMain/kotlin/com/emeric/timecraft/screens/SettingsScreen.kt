@@ -299,53 +299,49 @@ fun SettingsScreen(
                                 if (selectedSchedule.isWorkDay) {
                                     Text("Plage du Matin", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedTextField(
+                                        TimeInputField(
                                             value = selectedSchedule.morningStart,
                                             onValueChange = { newVal ->
                                                 val updated = selectedSchedule.copy(morningStart = newVal)
                                                 daySchedules = daySchedules.toMutableList().apply { set(selectedDayIndex, updated) }
                                                 com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
                                             },
-                                            label = { Text("Début") },
-                                            modifier = Modifier.weight(1f),
-                                            singleLine = true
+                                            label = "Début",
+                                            modifier = Modifier.weight(1f)
                                         )
-                                        OutlinedTextField(
+                                        TimeInputField(
                                             value = selectedSchedule.morningEnd,
                                             onValueChange = { newVal ->
                                                 val updated = selectedSchedule.copy(morningEnd = newVal)
                                                 daySchedules = daySchedules.toMutableList().apply { set(selectedDayIndex, updated) }
                                                 com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
                                             },
-                                            label = { Text("Fin") },
-                                            modifier = Modifier.weight(1f),
-                                            singleLine = true
+                                            label = "Fin",
+                                            modifier = Modifier.weight(1f)
                                         )
                                     }
 
                                     Text("Plage de l'Après-midi", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedTextField(
+                                        TimeInputField(
                                             value = selectedSchedule.afternoonStart,
                                             onValueChange = { newVal ->
                                                 val updated = selectedSchedule.copy(afternoonStart = newVal)
                                                 daySchedules = daySchedules.toMutableList().apply { set(selectedDayIndex, updated) }
                                                 com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
                                             },
-                                            label = { Text("Début") },
-                                            modifier = Modifier.weight(1f),
-                                            singleLine = true
+                                            label = "Début",
+                                            modifier = Modifier.weight(1f)
                                         )
-                                        OutlinedTextField(
+                                        TimeInputField(
                                             value = selectedSchedule.afternoonEnd,
                                             onValueChange = { newVal ->
                                                 val updated = selectedSchedule.copy(afternoonEnd = newVal)
                                                 daySchedules = daySchedules.toMutableList().apply { set(selectedDayIndex, updated) }
                                                 com.emeric.timecraft.model.DefaultSchedules.saveScheduleForDay(updated, settingsStorage)
                                             },
-                                            label = { Text("Fin") },
-                                            modifier = Modifier.weight(1f),
-                                            singleLine = true
+                                            label = "Fin",
+                                            modifier = Modifier.weight(1f)
                                         )
                                     }
 

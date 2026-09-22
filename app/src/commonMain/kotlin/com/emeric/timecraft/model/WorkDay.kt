@@ -31,6 +31,16 @@ private fun parseColor(colorString: String): Int {
     throw IllegalArgumentException("Unknown color")
 }
 
+private fun parseMinutes(timeStr: String): Int? {
+    if (timeStr.isBlank()) return null
+    val clean = timeStr.trim().lowercase().replace("h", ":").replace(".", ":").replace(" ", "")
+    val parts = clean.split(":")
+    if (parts.isEmpty()) return null
+    val h = parts[0].toIntOrNull() ?: return null
+    val m = if (parts.size > 1) (parts[1].toIntOrNull() ?: 0) else 0
+    return h * 60 + m
+}
+
 @Serializable
 data class DayScheduleConfig(
     val dayOfWeekName: String,
@@ -43,14 +53,6 @@ data class DayScheduleConfig(
 ) {
     fun calculateTargetHours(): Double {
         if (!isWorkDay) return 0.0
-        fun parseMinutes(timeStr: String): Int? {
-            val clean = timeStr.trim().replace("h", ":").replace("H", ":")
-            val parts = clean.split(":")
-            if (parts.size != 2) return null
-            val h = parts[0].trim().toIntOrNull() ?: return null
-            val m = parts[1].trim().toIntOrNull() ?: return null
-            return h * 60 + m
-        }
 
         val mStart = parseMinutes(morningStart)
         val mEnd = parseMinutes(morningEnd)
@@ -138,15 +140,6 @@ data class ClientSchedule(
     }
 
     fun calculateHours(): Double {
-        fun parseMinutes(timeStr: String): Int? {
-            val clean = timeStr.trim().replace("h", ":").replace("H", ":")
-            val parts = clean.split(":")
-            if (parts.size != 2) return null
-            val h = parts[0].trim().toIntOrNull() ?: return null
-            val m = parts[1].trim().toIntOrNull() ?: return null
-            return h * 60 + m
-        }
-
         val mStart = parseMinutes(morningStart)
         val mEnd = parseMinutes(morningEnd)
         val aStart = parseMinutes(afternoonStart)

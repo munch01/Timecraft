@@ -26,6 +26,59 @@ import kotlinx.datetime.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun TimeInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val timeOptions = remember {
+        val list = mutableListOf<String>()
+        for (h in 6..22) {
+            for (m in listOf(0, 15, 30, 45)) {
+                val hStr = h.toString().padStart(2, '0')
+                val mStr = m.toString().padStart(2, '0')
+                list.add("$hStr:$mStr")
+            }
+        }
+        list
+    }
+
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                IconButton(onClick = { expanded = true }) {
+                    Icon(Icons.Default.AccessTime, contentDescription = "Tranches de 15 min")
+                }
+            }
+        )
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 220.dp)
+        ) {
+            timeOptions.forEach { timeOption ->
+                DropdownMenuItem(
+                    text = { Text(timeOption, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A)) },
+                    onClick = {
+                        onValueChange(timeOption)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun DayDetailScreen(
     date: LocalDate,
     initialWorkDay: WorkDay?,
@@ -209,60 +262,137 @@ fun DayDetailScreen(
                                     IconButton(onClick = {
                                         clientSchedules = clientSchedules.filterIndexed { i, _ -> i != index }
                                     }) {
-                                        Icon(Icons.Default.DeleteOutline, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error)
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = "Supprimer le client", tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
 
-                                Text("Matin", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedTextField(
-                                        value = item.morningStart,
-                                        onValueChange = {
-                                            clientSchedules = clientSchedules.toMutableList().apply {
-                                                set(index, item.copy(morningStart = it))
-                                            }
-                                        },
-                                        label = { Text("Début") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = item.morningEnd,
-                                        onValueChange = {
-                                            clientSchedules = clientSchedules.toMutableList().apply {
-                                                set(index, item.copy(morningEnd = it))
-                                            }
-                                        },
-                                        label = { Text("Fin") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
+                                val hasMorning = item.morningStart.isNotBlank() || item.morningEnd.isNotBlank()
+                                val hasAfternoon = item.afternoonStart.isNotBlank() || item.afternoonEnd.isNotBlank()
+
+                                // Section Matin
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Matin", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                                    if (hasMorning) {
+                                        TextButton(
+                                            onClick = {
+                                                clientSchedules = clientSchedules.toMutableList().apply {
+                                                    set(index, item.copy(morningStart = "", morningEnd = ""))
+                                                }
+                                            },
+                                            contentPadding = PaddingValues(0.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Supprimer le matin", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
                                 }
 
-                                Text("Après-midi", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedTextField(
-                                        value = item.afternoonStart,
-                                        onValueChange = {
+                                if (hasMorning) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TimeInputField(
+                                            value = item.morningStart,
+                                            onValueChange = { newStart ->
+                                                clientSchedules = clientSchedules.toMutableList().apply {
+                                                    set(index, item.copy(morningStart = newStart))
+                                                }
+                                            },
+                                            label = "Début",
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        TimeInputField(
+                                            value = item.morningEnd,
+                                            onValueChange = { newEnd ->
+                                                clientSchedules = clientSchedules.toMutableList().apply {
+                                                    set(index, item.copy(morningEnd = newEnd))
+                                                }
+                                            },
+                                            label = "Fin",
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {
                                             clientSchedules = clientSchedules.toMutableList().apply {
-                                                set(index, item.copy(afternoonStart = it))
+                                                set(index, item.copy(morningStart = defaultConfig.morningStart, morningEnd = defaultConfig.morningEnd))
                                             }
                                         },
-                                        label = { Text("Début") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = item.afternoonEnd,
-                                        onValueChange = {
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Ajouter les horaires du matin", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Section Après-midi
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Après-midi", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                                    if (hasAfternoon) {
+                                        TextButton(
+                                            onClick = {
+                                                clientSchedules = clientSchedules.toMutableList().apply {
+                                                    set(index, item.copy(afternoonStart = "", afternoonEnd = ""))
+                                                }
+                                            },
+                                            contentPadding = PaddingValues(0.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Supprimer l'après-midi", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+                                }
+
+                                if (hasAfternoon) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TimeInputField(
+                                            value = item.afternoonStart,
+                                            onValueChange = { newStart ->
+                                                clientSchedules = clientSchedules.toMutableList().apply {
+                                                    set(index, item.copy(afternoonStart = newStart))
+                                                }
+                                            },
+                                            label = "Début",
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        TimeInputField(
+                                            value = item.afternoonEnd,
+                                            onValueChange = { newEnd ->
+                                                clientSchedules = clientSchedules.toMutableList().apply {
+                                                    set(index, item.copy(afternoonEnd = newEnd))
+                                                }
+                                            },
+                                            label = "Fin",
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {
                                             clientSchedules = clientSchedules.toMutableList().apply {
-                                                set(index, item.copy(afternoonEnd = it))
+                                                set(index, item.copy(afternoonStart = defaultConfig.afternoonStart, afternoonEnd = defaultConfig.afternoonEnd))
                                             }
                                         },
-                                        label = { Text("Fin") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Ajouter les horaires de l'après-midi", style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
 
                                 val itemHours = item.formattedHours()

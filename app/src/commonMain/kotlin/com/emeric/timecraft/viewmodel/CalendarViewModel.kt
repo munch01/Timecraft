@@ -14,6 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.datetime.*
 import com.emeric.timecraft.getPlatform
+import kotlinx.serialization.json.Json
 
 class CalendarViewModel {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -49,23 +50,30 @@ class CalendarViewModel {
     private fun fetchDays() {
         scope.launch {
             try {
-                // Wait a bit for session to be restored if needed
+                // Wait for session to be restored
                 var userId: String? = null
-                for (i in 1..5) {
+                for (i in 1..10) {
                     userId = supabase.auth.currentSessionOrNull()?.user?.id
                     if (userId != null) break
-                    kotlinx.coroutines.delay(500)
+                    kotlinx.coroutines.delay(300)
                 }
                 
                 if (userId == null) return@launch
 
-                val results = supabase.from("work_days")
+                val rawData = supabase.from("work_days")
                     .select {
                         filter {
                             eq("user_id", userId)
                         }
-                    }
-                    .decodeList<WorkDay>()
+                    }.data
+
+                val jsonParser = Json {
+                    ignoreUnknownKeys = true
+                    coerceInputValues = true
+                    isLenient = true
+                }
+
+                val results = jsonParser.decodeFromString<List<WorkDay>>(rawData)
                 workDays = results.associateBy { it.date }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -88,7 +96,6 @@ class CalendarViewModel {
 
         scope.launch {
             try {
-                // We tell Supabase to update if user_id and date match
                 supabase.from("work_days").upsert(finalWorkDay) {
                     onConflict = "user_id,date"
                 }
@@ -116,7 +123,6 @@ class CalendarViewModel {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                fetchDays()
             }
         }
     }

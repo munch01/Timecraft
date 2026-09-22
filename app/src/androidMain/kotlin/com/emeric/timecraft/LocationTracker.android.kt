@@ -32,32 +32,58 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
                 return
             }
 
-            // Battery optimized parameters: 15s interval, 15m displacement
-            val provider = when {
-                locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true -> LocationManager.GPS_PROVIDER
-                locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true -> LocationManager.NETWORK_PROVIDER
-                else -> null
+            if (locationManager == null) {
+                getPlatform().showToast("Service de localisation indisponible")
+                return
             }
 
-            if (provider != null) {
-                locationManager?.requestLocationUpdates(
-                    provider,
-                    15000L, // 15 seconds
-                    15f,    // 15 meters
-                    this
-                )
-                _isTracking.value = true
+            var registered = false
 
-                // Start Foreground Service to keep GPS active in background
+            // Register all available providers safely
+            try {
+                if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10000L, 10f, this)
+                    registered = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            try {
+                if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000L, 10f, this)
+                    registered = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            try {
+                locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 10000L, 10f, this)
+                registered = true
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            if (registered) {
+                _isTracking.value = true
                 LocationForegroundService.start(context)
 
-                // Try getting last known location immediately
-                val lastLoc = locationManager?.getLastKnownLocation(provider)
-                if (lastLoc != null) {
-                    onLocationChanged(lastLoc)
+                // Query last known position from any provider
+                val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+                for (p in providers) {
+                    try {
+                        val loc = locationManager.getLastKnownLocation(p)
+                        if (loc != null) {
+                            onLocationChanged(loc)
+                            break
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
             } else {
-                getPlatform().showToast("Localisation désactivée sur l'appareil")
+                getPlatform().showToast("Veuillez activer le GPS / Localisation dans les paramètres de votre téléphone")
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -93,7 +119,7 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
         val currentList = _trackHistory.value
         val lastPoint = currentList.lastOrNull()
 
-        // Filter out duplicate or static noise points (< 10 meters) to preserve battery & route clean
+        // Filter out duplicate or static noise points (< 10 meters)
         if (lastPoint == null || MapProjection.distanceMeters(lastPoint.latitude, lastPoint.longitude, point.latitude, point.longitude) >= 10.0) {
             _trackHistory.value = currentList + point
         }

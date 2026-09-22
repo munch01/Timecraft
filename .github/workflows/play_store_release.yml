@@ -21,14 +21,15 @@ jobs:
       - name: Decode Keystore
         id: decode_keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+          ls -la app/release.keystore
           echo "KEYSTORE_PATH=release.keystore" >> $GITHUB_ENV
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew :app:bundleRelease
+        run: ./gradlew :app:bundleRelease --stacktrace
         env:
           KEYSTORE_PATH: release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}

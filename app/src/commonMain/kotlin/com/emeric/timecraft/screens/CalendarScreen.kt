@@ -47,7 +47,7 @@ fun CalendarScreen(
                     Text(
                         text = "${DateTimeUtils.getMonthName(currentMonth.month)} ${currentMonth.year}",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
+                        fontSize = 22.sp
                     )
                 },
                 navigationIcon = {
@@ -68,37 +68,37 @@ fun CalendarScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             // Jours de la semaine
             Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceAround) {
                 listOf("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim").forEach {
-                    Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                    Text(it, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1A3A5A))
                 }
             }
 
-            // Enlarged Calendar Card taking full available height
+            // Enlarged Calendar Card taking full available height with large day items
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .padding(bottom = 80.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.92f)),
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    .padding(bottom = 85.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f)),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
             ) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(7),
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(12.dp),
-                    contentPadding = PaddingValues(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(8.dp),
+                    contentPadding = PaddingValues(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val firstDayOfWeek = days.first().dayOfWeek.ordinal // 0 = Monday
                     items(firstDayOfWeek) {
-                        Box(modifier = Modifier.aspectRatio(1f))
+                        Box(modifier = Modifier.fillMaxWidth().height(60.dp))
                     }
 
                     items(days) { date ->
@@ -124,32 +124,43 @@ fun DayItem(
     onClick: () -> Unit
 ) {
     val isMarked = workDay != null
-    val bgColor = workDay?.type?.getColor() ?: Color(0xFFF4F6F8)
-    val textColor = if (isMarked) Color.White else Color.Black
+    val bgColor = workDay?.type?.getColor() ?: Color(0xFFF0F4F8)
+    val textColor = if (isMarked) Color.White else Color(0xFF1A3A5A)
 
     Box(
         modifier = Modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(12.dp))
+            .fillMaxWidth()
+            .height(58.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(bgColor)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
             Text(
                 text = date.dayOfMonth.toString(),
                 color = textColor,
-                fontWeight = if (isMarked) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 16.sp
+                fontWeight = if (isMarked) FontWeight.Black else FontWeight.Bold,
+                fontSize = 20.sp
             )
             if (isMarked && workDay.totalWorkedHours() > 0) {
                 val totalH = workDay.formattedTotalHours()
-                Text(
-                    text = totalH,
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Surface(
+                    color = Color.Black.copy(alpha = 0.25f),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    Text(
+                        text = totalH,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
             }
         }
     }

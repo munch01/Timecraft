@@ -38,30 +38,34 @@ class TileCache {
         val key = "$zoom/$tileX/$tileY"
         memoryCache[key]?.let { return@withContext it }
 
-        return@withContext try {
-            val urlStr = "https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
-            val url = java.net.URL(urlStr)
-            val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("User-Agent", "TimeCraft/1.0 (Android; Mobile)")
-            conn.connectTimeout = 6000
-            conn.readTimeout = 6000
-            conn.instanceFollowRedirects = true
-            conn.connect()
+        val tileUrls = listOf(
+            "https://basemaps.cartocdn.com/rastertiles/voyager/$zoom/$tileX/$tileY.png",
+            "https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
+        )
 
-            if (conn.responseCode == 200) {
-                val bytes = conn.inputStream.use { it.readBytes() }
-                @OptIn(org.jetbrains.compose.resources.ExperimentalResourceApi::class)
-                val bitmap = bytes.decodeToImageBitmap()
-                memoryCache[key] = bitmap
-                bitmap
-            } else {
-                null
+        for (urlStr in tileUrls) {
+            try {
+                val url = java.net.URL(urlStr)
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("User-Agent", "TimeCraft/1.0 (Android; Mobile)")
+                conn.connectTimeout = 4000
+                conn.readTimeout = 4000
+                conn.instanceFollowRedirects = true
+                conn.connect()
+
+                if (conn.responseCode == 200) {
+                    val bytes = conn.inputStream.use { it.readBytes() }
+                    @OptIn(org.jetbrains.compose.resources.ExperimentalResourceApi::class)
+                    val bitmap = bytes.decodeToImageBitmap()
+                    memoryCache[key] = bitmap
+                    return@withContext bitmap
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
         }
+        null
     }
 }
 
@@ -98,7 +102,7 @@ fun MapScreen(
         }
     }
 
-    // Load OpenStreetMap tiles around map center
+    // Load tiles around map center
     LaunchedEffect(mapCenterLat, mapCenterLon, zoomLevel) {
         val centerTileX = MapProjection.lonToTileX(mapCenterLon, zoomLevel).toInt()
         val centerTileY = MapProjection.latToTileY(mapCenterLat, zoomLevel).toInt()
@@ -184,7 +188,7 @@ fun MapScreen(
                     return Offset(offsetX.toFloat(), offsetY.toFloat())
                 }
 
-                // Draw OpenStreetMap Tiles
+                // Draw Map Tiles
                 val baseTileX = centerTileX.toInt()
                 val baseTileY = centerTileY.toInt()
 
@@ -322,31 +326,21 @@ fun MapScreen(
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Distance", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text("Distance parcourue", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                         Text(
                             text = "${(kotlin.math.round(totalDistanceKm * 10.0) / 10.0)} km",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
+                            fontSize = 18.sp,
                             color = Color(0xFF1A3A5A)
                         )
                     }
 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Vitesse", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                        Text(
-                            text = "${currentPoint?.speedKmh?.toInt() ?: 0} km/h",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color(0xFF1A3A5A)
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Points relevés", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text("Points enregistrés", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                         Text(
                             text = "${trackHistory.size}",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
+                            fontSize = 18.sp,
                             color = Color(0xFF1A3A5A)
                         )
                     }

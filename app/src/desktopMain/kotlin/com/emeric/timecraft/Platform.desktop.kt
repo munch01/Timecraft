@@ -46,7 +46,8 @@ class DesktopPdfExporter : PdfExporter {
         title: String,
         subtitle: String,
         metrics: List<Pair<String, String>>,
-        clientBreakdown: List<Pair<String, String>>
+        clientBreakdown: List<Pair<String, String>>,
+        trackPoints: List<LocationPoint>
     ) {
         try {
             val userHome = System.getProperty("user.home") ?: "."

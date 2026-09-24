@@ -31,6 +31,8 @@ import org.jetbrains.compose.resources.painterResource
 import timecraft.app.generated.resources.Res
 import timecraft.app.generated.resources.*
 
+import com.emeric.timecraft.utils.*
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -41,6 +43,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val platform = getPlatform()
+    val strings = getAppStrings(LanguageManager.currentLanguage)
     var currentTab by remember { mutableStateOf(0) }
 
     Box(
@@ -78,9 +81,9 @@ fun HomeScreen(
                     title = {
                         Text(
                             text = when(currentTab) {
-                                0 -> "Calendrier"
-                                1 -> "Trajets"
-                                else -> "Rapport"
+                                0 -> strings.calendar
+                                1 -> strings.trips
+                                else -> strings.report
                             },
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontSize = 22.sp,
@@ -90,7 +93,7 @@ fun HomeScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = { platform.exit() }) {
-                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Quitter")
+                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = strings.quit)
                         }
                     },
                     actions = {
@@ -135,9 +138,9 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        NavTabItem(0, Icons.Default.CalendarMonth, "Calendrier", currentTab) { currentTab = 0 }
-                        NavTabItem(1, Icons.Default.Map, "Trajets", currentTab) { currentTab = 1 }
-                        NavTabItem(2, Icons.Default.BarChart, "Rapport", currentTab) { currentTab = 2 }
+                        NavTabItem(0, Icons.Default.CalendarMonth, strings.calendar, currentTab) { currentTab = 0 }
+                        NavTabItem(1, Icons.Default.Map, strings.trips, currentTab) { currentTab = 1 }
+                        NavTabItem(2, Icons.Default.BarChart, strings.report, currentTab) { currentTab = 2 }
                     }
                 }
 
@@ -156,7 +159,7 @@ fun HomeScreen(
                     Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("☕", fontSize = 14.sp)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Offrir un café", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text(strings.buyCoffee, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -183,6 +186,7 @@ private fun NavTabItem(index: Int, icon: androidx.compose.ui.graphics.vector.Ima
 
 @Composable
 fun ReportScreen(viewModel: CalendarViewModel) {
+    val strings = getAppStrings(LanguageManager.currentLanguage)
     val pdfExporter = remember { getPdfExporter() }
     val locationTracker = remember { getLocationTracker() }
     val trackHistory by locationTracker.trackHistory.collectAsState()
@@ -235,7 +239,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Rapport Mensuel", fontWeight = FontWeight.Bold)
+                Text(strings.monthlyReport, fontWeight = FontWeight.Bold)
             }
 
             Button(
@@ -247,7 +251,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Rapport Annuel", fontWeight = FontWeight.Bold)
+                Text(strings.yearlyReport, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -267,6 +271,18 @@ fun ReportScreen(viewModel: CalendarViewModel) {
 
             val totalHoursWorked = monthDays.filter { it.type == DayType.WORKED }.sumOf { it.totalWorkedHours() }
             val totalExpenses = monthDays.flatMap { it.expenses }.sumOf { it.amount }
+
+            val daysInMonthCount = DateTimeUtils.getDaysInMonth(currentMonth.year, currentMonth.month).size
+            val weeksInMonth = daysInMonthCount / 7.0
+            val weeklyAvgHours = if (weeksInMonth > 0) totalHoursWorked / weeksInMonth else 0.0
+            val diffVs35h = weeklyAvgHours - 35.0
+
+            val formattedWeeklyAvg = formatH(weeklyAvgHours)
+            val diffText = when {
+                kotlin.math.abs(diffVs35h) < 0.1 -> "🎯 Ref 35h00 atteinte"
+                diffVs35h > 0 -> "📈 +${formatH(diffVs35h)} / sem"
+                else -> "📉 -${formatH(-diffVs35h)} / sem"
+            }
 
             val clientHoursMap = remember(monthDays) {
                 val map = mutableMapOf<String, Double>()
@@ -307,11 +323,61 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 }
             }
 
+            // 35h Weekly Average Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Moyenne Hebdomadaire",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1A3A5A)
+                        )
+                        Text(
+                            "Base mensuelle ($daysInMonthCount jours / ${(kotlin.math.round(weeksInMonth * 10.0) / 10.0)} sem.)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "$formattedWeeklyAvg / sem",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF1A3A5A)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            color = if (diffVs35h >= -0.1) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                diffText,
+                                color = if (diffVs35h >= -0.1) Color(0xFF2E7D32) else Color(0xFFC62828),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // Export PDF Button
             Button(
                 onClick = {
                     val metrics = listOf(
                         "Jours travaillés" to "$workedDaysCount jours (${formatH(totalHoursWorked)})",
+                        "Moyenne hebdo (mensuelle)" to "$formattedWeeklyAvg / sem (réf. 35h)",
                         "RTT pris" to "$rttDaysCount jours",
                         "Congés payés" to "$leaveDaysCount jours",
                         "Evénement familial" to "$familyDaysCount jours",
@@ -324,7 +390,8 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                         title = "Rapport Mensuel - ${DateTimeUtils.getMonthName(currentMonth.month)} ${currentMonth.year}",
                         subtitle = "Généré par TimeCraft - Suivi d'activité",
                         metrics = metrics,
-                        clientBreakdown = clientBreakdown
+                        clientBreakdown = clientBreakdown,
+                        trackPoints = trackHistory
                     )
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -346,6 +413,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                     Text("Synthèse Mensuelle", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
 
                     ReportRow("💼 Jours travaillés", "$workedDaysCount jours (${formatH(totalHoursWorked)})", DayType.WORKED.getColor())
+                    ReportRow("⏱️ Moyenne hebdo (réf. 35h)", "$formattedWeeklyAvg / sem", Color(0xFF1976D2))
                     ReportRow("⏱️ RTT pris", "$rttDaysCount jours", DayType.RTT.getColor())
                     ReportRow("🌴 Congés payés", "$leaveDaysCount jours", DayType.PAID_LEAVE.getColor())
                     ReportRow("👨‍👩‍👧 Evénement familial", "$familyDaysCount jours", DayType.FAMILY_ABSENCE.getColor())
@@ -404,6 +472,8 @@ fun ReportScreen(viewModel: CalendarViewModel) {
             val totalLeaveYear = yearDays.count { it.type == DayType.PAID_LEAVE }
             val totalExpensesYear = yearDays.flatMap { it.expenses }.sumOf { it.amount }
 
+            val yearlyWeeklyAvg = totalHoursYear / 52.0
+
             // Year Selector Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -435,6 +505,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 onClick = {
                     val metrics = listOf(
                         "Total Jours travaillés ($selectedYear)" to "$totalWorkedDaysYear jours (${formatH(totalHoursYear)})",
+                        "Moyenne hebdo sur l'année" to "${formatH(yearlyWeeklyAvg)} / sem (réf. 35h)",
                         "Total RTT pris" to "$totalRttYear jours",
                         "Total Congés payés" to "$totalLeaveYear jours",
                         "Total des frais" to "$totalExpensesYear €"
@@ -443,7 +514,8 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                         title = "Rapport Annuel - Année $selectedYear",
                         subtitle = "Généré par TimeCraft - Bilan annuel",
                         metrics = metrics,
-                        clientBreakdown = emptyList()
+                        clientBreakdown = emptyList(),
+                        trackPoints = trackHistory
                     )
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -465,6 +537,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                     Text("Bilan Annuel $selectedYear", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
 
                     ReportRow("💼 Jours travaillés", "$totalWorkedDaysYear jours (${formatH(totalHoursYear)})", DayType.WORKED.getColor())
+                    ReportRow("⏱️ Moyenne hebdo sur l'année", "${formatH(yearlyWeeklyAvg)} / sem", Color(0xFF1976D2))
                     ReportRow("⏱️ RTT pris", "$totalRttYear jours", DayType.RTT.getColor())
                     ReportRow("🌴 Congés payés", "$totalLeaveYear jours", DayType.PAID_LEAVE.getColor())
 
@@ -478,9 +551,13 @@ fun ReportScreen(viewModel: CalendarViewModel) {
             Text("Détail Mois par Mois ($selectedYear)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
 
             (1..12).forEach { monthIdx ->
+                val monthEnum = kotlinx.datetime.Month.entries[monthIdx - 1]
+                val mDaysInMonth = DateTimeUtils.getDaysInMonth(selectedYear, monthEnum).size
+                val mWeeks = mDaysInMonth / 7.0
                 val mDays = yearDays.filter { it.date.monthNumber == monthIdx }
                 val mWorked = mDays.count { it.type == DayType.WORKED }
                 val mHours = mDays.filter { it.type == DayType.WORKED }.sumOf { it.totalWorkedHours() }
+                val mWeeklyAvg = if (mWeeks > 0) mHours / mWeeks else 0.0
                 val mExpenses = mDays.flatMap { it.expenses }.sumOf { it.amount }
 
                 Card(
@@ -494,8 +571,8 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text(DateTimeUtils.getMonthName(kotlinx.datetime.Month.entries[monthIdx - 1]), fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
-                            Text("$mWorked jours travaillés (${formatH(mHours)})", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            Text(DateTimeUtils.getMonthName(monthEnum), fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                            Text("$mWorked jours travaillés (${formatH(mHours)}) • ${formatH(mWeeklyAvg)}/sem", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                         }
 
                         if (mExpenses > 0) {

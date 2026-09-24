@@ -99,20 +99,8 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
                     }
                 }
 
-                if (foundLoc != null) {
+                if (foundLoc != null && (!foundLoc.hasAccuracy() || foundLoc.accuracy <= 25.0f)) {
                     onLocationChanged(foundLoc)
-                } else {
-                    // Fallback initial location so stats and dot appear immediately
-                    val initPoint = LocationPoint(
-                        latitude = 48.8566,
-                        longitude = 2.3522,
-                        timestamp = System.currentTimeMillis(),
-                        speedKmh = 0f
-                    )
-                    _currentPoint.value = initPoint
-                    if (_trackHistory.value.isEmpty()) {
-                        _trackHistory.value = listOf(initPoint)
-                    }
                 }
             } else {
                 getPlatform().showToast("Veuillez activer le GPS / Localisation dans les paramètres de votre téléphone")
@@ -139,6 +127,16 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
     }
 
     override fun onLocationChanged(location: Location) {
+        // 1. Accuracy Filter: Ignore imprecise locations (> 25m accuracy radius)
+        if (location.hasAccuracy() && location.accuracy > 25.0f) {
+            return
+        }
+
+        // 2. Extra strict accuracy check for network/passive provider
+        if (location.provider == LocationManager.NETWORK_PROVIDER && location.hasAccuracy() && location.accuracy > 15.0f) {
+            return
+        }
+
         val speedKmh = if (location.hasSpeed()) location.speed * 3.6f else 0f
         val point = LocationPoint(
             latitude = location.latitude,
@@ -146,13 +144,42 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
             timestamp = location.time,
             speedKmh = speedKmh
         )
+
+        // Always update the current location marker for the UI
         _currentPoint.value = point
 
         val currentList = _trackHistory.value
         val lastPoint = currentList.lastOrNull()
 
-        // Filter out tiny static noise (< 5 meters)
-        if (lastPoint == null || MapProjection.distanceMeters(lastPoint.latitude, lastPoint.longitude, point.latitude, point.longitude) >= 5.0) {
+        if (lastPoint == null) {
+            _trackHistory.value = listOf(point)
+            return
+        }
+
+        val distMeters = MapProjection.distanceMeters(
+            lastPoint.latitude, lastPoint.longitude,
+            point.latitude, point.longitude
+        )
+
+        val timeDeltaSec = (location.time - lastPoint.timestamp) / 1000.0
+
+        // 3. Outlier / Teleportation Jump Filter
+        // Ignore impossible speed spikes (> 140 km/h or > 120m jump in < 3s)
+        if (timeDeltaSec > 0) {
+            val impliedSpeedKmh = (distMeters / timeDeltaSec) * 3.6
+            if (impliedSpeedKmh > 140.0) {
+                return
+            }
+        }
+        if (timeDeltaSec < 3.0 && distMeters > 120.0) {
+            return
+        }
+
+        // 4. Anti-Drift Stationary Filter (office / desk / red light)
+        // Require a higher movement threshold if speed is low or static (< 3 km/h)
+        val minRequiredDistance = if (speedKmh < 3.0f) 15.0 else 8.0
+
+        if (distMeters >= minRequiredDistance) {
             _trackHistory.value = currentList + point
         }
     }

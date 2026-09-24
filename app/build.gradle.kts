@@ -65,6 +65,25 @@ kotlin {
                 implementation(libs.ktor.client.okhttp)
             }
         }
+
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
+
+        val androidUnitTest by getting {
+            dependencies {
+                implementation(libs.junit)
+            }
+        }
+
+        val androidInstrumentedTest by getting {
+            dependencies {
+                implementation(libs.androidx.junit)
+                implementation(libs.androidx.espresso.core)
+            }
+        }
     }
 }
 

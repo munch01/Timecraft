@@ -25,6 +25,7 @@ import com.emeric.timecraft.screens.*
 import com.emeric.timecraft.ui.theme.TimeCraftTheme
 import com.emeric.timecraft.viewmodel.CalendarViewModel
 import io.github.jan.supabase.auth.auth
+import com.emeric.timecraft.utils.*
 import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.resources.painterResource
 import timecraft.app.generated.resources.Res
@@ -36,7 +37,9 @@ enum class Screen {
 
 @Composable
 fun App() {
-    TimeCraftTheme {
+    val currentStrings = getAppStrings(LanguageManager.currentLanguage)
+    CompositionLocalProvider(LocalAppStrings provides currentStrings) {
+        TimeCraftTheme {
         var currentScreen by remember { mutableStateOf(Screen.Splash) }
         var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
         val calendarViewModel = remember { CalendarViewModel() }
@@ -130,6 +133,7 @@ fun App() {
             }
         }
     }
+}
 }
 
 @Composable

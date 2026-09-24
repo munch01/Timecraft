@@ -33,6 +33,8 @@ import org.jetbrains.compose.resources.painterResource
 import timecraft.app.generated.resources.Res
 import timecraft.app.generated.resources.*
 
+import com.emeric.timecraft.utils.*
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -46,6 +48,9 @@ fun SettingsScreen(
     val currentUser = supabase.auth.currentSessionOrNull()?.user
     val appVersion = "1.0.2"
 
+    val currentLang = LanguageManager.currentLanguage
+    val strings = getAppStrings(currentLang)
+
     var isBiometricEnabled by remember { mutableStateOf(settingsStorage.getBoolean("biometric_enabled", false)) }
 
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -56,9 +61,6 @@ fun SettingsScreen(
     
     var newEmail by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
-
-    val availableLanguages = listOf("Français", "English", "Español")
-    var selectedLanguage by remember { mutableStateOf("Français") }
 
     Box(
         modifier = Modifier
@@ -371,8 +373,8 @@ fun SettingsScreen(
                 ) {
                     SettingsClickableItem(
                         icon = Icons.Default.Language,
-                        title = "Langue de l'application",
-                        subtitle = selectedLanguage,
+                        title = strings.appLanguage,
+                        subtitle = currentLang.displayName,
                         onClick = { showLanguageDialog = true }
                     )
                 }
@@ -521,32 +523,35 @@ fun SettingsScreen(
     if (showLanguageDialog) {
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
-            title = { Text("Choisir la langue") },
+            title = { Text(strings.selectLanguage) },
             text = {
                 Column {
-                    availableLanguages.forEach { lang ->
+                    AppLanguage.entries.forEach { lang ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    selectedLanguage = lang
+                                    LanguageManager.setLanguage(lang)
                                     showLanguageDialog = false
                                 }
                                 .padding(vertical = 12.dp, horizontal = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(selected = (lang == selectedLanguage), onClick = {
-                                selectedLanguage = lang
-                                showLanguageDialog = false
-                            })
+                            RadioButton(
+                                selected = (lang == LanguageManager.currentLanguage),
+                                onClick = {
+                                    LanguageManager.setLanguage(lang)
+                                    showLanguageDialog = false
+                                }
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = lang, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = lang.displayName, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showLanguageDialog = false }) { Text("Annuler") }
+                TextButton(onClick = { showLanguageDialog = false }) { Text(strings.cancel) }
             }
         )
     }

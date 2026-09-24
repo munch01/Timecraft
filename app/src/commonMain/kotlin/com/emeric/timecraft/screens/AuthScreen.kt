@@ -29,17 +29,12 @@ import org.jetbrains.compose.resources.painterResource
 import timecraft.app.generated.resources.Res
 import timecraft.app.generated.resources.*
 
-import com.emeric.timecraft.getBiometryManager
-import com.emeric.timecraft.getPlatform
-
 @Composable
 fun AuthScreen(
     onAuthSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val platform = getPlatform()
-    val biometryManager = getBiometryManager()
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -47,21 +42,6 @@ fun AuthScreen(
     var isLoading by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    // Biometric Auto-Auth
-    LaunchedEffect(Unit) {
-        biometryManager?.let { manager ->
-            if (!isSignUp && manager.canAuthenticate()) {
-                manager.authenticate(
-                    title = "Authentification",
-                    subtitle = "Utilisez votre empreinte pour vous connecter à TimeCraft",
-                    negativeButtonText = "Annuler",
-                    onSuccess = { onAuthSuccess() },
-                    onError = { platform.showToast(it) }
-                )
-            }
-        }
-    }
 
     Box(
         modifier = modifier

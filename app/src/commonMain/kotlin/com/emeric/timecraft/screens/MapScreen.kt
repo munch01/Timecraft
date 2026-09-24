@@ -39,8 +39,9 @@ class TileCache {
         memoryCache[key]?.let { return@withContext it }
 
         val tileUrls = listOf(
-            "https://basemaps.cartocdn.com/rastertiles/voyager/$zoom/$tileX/$tileY.png",
-            "https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
+            "https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png",
+            "https://a.tile.openstreetmap.fr/osmfr/$zoom/$tileX/$tileY.png",
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/$zoom/$tileY/$tileX"
         )
 
         for (urlStr in tileUrls) {

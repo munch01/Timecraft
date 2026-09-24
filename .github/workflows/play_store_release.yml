@@ -19,11 +19,15 @@ jobs:
           cache: gradle
 
       - name: Decode Keystore
-        id: decode_keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\r\n ' | base64 --decode > app/release.keystore
-          ls -la app/release.keystore
-          echo "KEYSTORE_PATH=release.keystore" >> $GITHUB_ENV
+        uses: timheuer/base64-to-file@v2
+        id: android_keystore
+        with:
+          fileName: 'release.keystore'
+          fileDir: 'app/'
+          encodedString: ${{ secrets.KEYSTORE_BASE64 }}
+
+      - name: Set Keystore Path
+        run: echo "KEYSTORE_PATH=release.keystore" >> $GITHUB_ENV
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew

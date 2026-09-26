@@ -46,7 +46,7 @@ fun SettingsScreen(
     val biometryManager = remember { getBiometryManager() }
     val coroutineScope = rememberCoroutineScope()
     val currentUser = supabase.auth.currentSessionOrNull()?.user
-    val appVersion = "1.0.4"
+    val appVersion = "1.0.5"
 
     val currentLang = LanguageManager.currentLanguage
     val strings = getAppStrings(currentLang)
@@ -93,6 +93,8 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .consumeWindowInsets(paddingValues)
+                    .imePadding()
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)

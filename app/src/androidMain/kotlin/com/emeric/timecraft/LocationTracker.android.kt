@@ -6,6 +6,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import androidx.core.app.ActivityCompat
+import com.emeric.timecraft.utils.GpsStorage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,19 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
     override val trackHistory: StateFlow<List<LocationPoint>> = _trackHistory.asStateFlow()
 
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+
+    init {
+        try {
+            val todayStr = getPlatform().getCurrentLocalDate().toString()
+            val savedToday = GpsStorage.getPointsForDate(todayStr)
+            if (savedToday.isNotEmpty()) {
+                _trackHistory.value = savedToday
+                _currentPoint.value = savedToday.lastOrNull()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     override fun startTracking() {
         if (_isTracking.value) return
@@ -123,7 +137,13 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
     }
 
     override fun clearHistory() {
-        _trackHistory.value = emptyList()
+        try {
+            val todayStr = getPlatform().getCurrentLocalDate().toString()
+            _trackHistory.value = emptyList()
+            GpsStorage.savePointsForDate(todayStr, emptyList())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onLocationChanged(location: Location) {
@@ -151,8 +171,12 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
         val currentList = _trackHistory.value
         val lastPoint = currentList.lastOrNull()
 
+        val todayStr = try { getPlatform().getCurrentLocalDate().toString() } catch (e: Exception) { "" }
+
         if (lastPoint == null) {
-            _trackHistory.value = listOf(point)
+            val newList = listOf(point)
+            _trackHistory.value = newList
+            if (todayStr.isNotBlank()) GpsStorage.savePointsForDate(todayStr, newList)
             return
         }
 
@@ -180,7 +204,9 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
         val minRequiredDistance = if (speedKmh < 3.0f) 15.0 else 8.0
 
         if (distMeters >= minRequiredDistance) {
-            _trackHistory.value = currentList + point
+            val newList = currentList + point
+            _trackHistory.value = newList
+            if (todayStr.isNotBlank()) GpsStorage.savePointsForDate(todayStr, newList)
         }
     }
 

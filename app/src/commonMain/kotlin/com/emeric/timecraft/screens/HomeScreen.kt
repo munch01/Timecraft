@@ -32,6 +32,8 @@ import timecraft.app.generated.resources.Res
 import timecraft.app.generated.resources.*
 
 import com.emeric.timecraft.utils.*
+import kotlin.math.max
+import kotlin.math.round
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -196,21 +198,6 @@ fun ReportScreen(viewModel: CalendarViewModel) {
 
     val currentMonth = viewModel.currentMonth
 
-    // Calculate total GPS distance recorded
-    val totalGpsDistanceKm = remember(trackHistory) {
-        if (trackHistory.size < 2) 0.0
-        else {
-            var dist = 0.0
-            for (i in 0 until trackHistory.size - 1) {
-                dist += com.emeric.timecraft.MapProjection.distanceMeters(
-                    trackHistory[i].latitude, trackHistory[i].longitude,
-                    trackHistory[i + 1].latitude, trackHistory[i + 1].longitude
-                )
-            }
-            dist / 1000.0
-        }
-    }
-
     val formatH = { hrs: Double ->
         val h = hrs.toInt()
         val m = ((hrs - h) * 60).toInt()
@@ -263,6 +250,21 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 }
             }
 
+            val daysInMonthCount = DateTimeUtils.getDaysInMonth(currentMonth.year, currentMonth.month).size
+            val startOfMonth = LocalDate(currentMonth.year, currentMonth.month, 1)
+            val endOfMonth = LocalDate(currentMonth.year, currentMonth.month, daysInMonthCount)
+
+            val monthGpsPoints = remember(currentMonth, trackHistory) {
+                val stored = GpsStorage.getPointsForPeriod(startOfMonth, endOfMonth)
+                if (stored.isNotEmpty()) stored else trackHistory
+            }
+
+            val totalMonthDistanceKm = remember(monthDays, monthGpsPoints) {
+                val manualDistance = monthDays.sumOf { it.distanceKm }
+                val gpsDistance = GpsStorage.calculateDistanceKm(monthGpsPoints)
+                max(manualDistance, gpsDistance)
+            }
+
             val workedDaysCount = monthDays.count { it.type == DayType.WORKED }
             val rttDaysCount = monthDays.count { it.type == DayType.RTT }
             val leaveDaysCount = monthDays.count { it.type == DayType.PAID_LEAVE }
@@ -272,7 +274,6 @@ fun ReportScreen(viewModel: CalendarViewModel) {
             val totalHoursWorked = monthDays.filter { it.type == DayType.WORKED }.sumOf { it.totalWorkedHours() }
             val totalExpenses = monthDays.flatMap { it.expenses }.sumOf { it.amount }
 
-            val daysInMonthCount = DateTimeUtils.getDaysInMonth(currentMonth.year, currentMonth.month).size
             val weeksInMonth = daysInMonthCount / 7.0
             val weeklyAvgHours = if (weeksInMonth > 0) totalHoursWorked / weeksInMonth else 0.0
             val diffVs35h = weeklyAvgHours - 35.0
@@ -382,7 +383,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                         "Congés payés" to "$leaveDaysCount jours",
                         "Evénement familial" to "$familyDaysCount jours",
                         "Congé sans solde" to "$unpaidDaysCount jours",
-                        "Distance GPS parcourue" to "${(kotlin.math.round(totalGpsDistanceKm * 10.0) / 10.0)} km",
+                        "Distance de déplacement" to "${(round(totalMonthDistanceKm * 10.0) / 10.0)} km",
                         "Total des frais" to "$totalExpenses €"
                     )
                     val clientBreakdown = clientHoursMap.map { (client, hrs) -> client to formatH(hrs) }
@@ -391,7 +392,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                         subtitle = "Généré par TimeCraft - Suivi d'activité",
                         metrics = metrics,
                         clientBreakdown = clientBreakdown,
-                        trackPoints = trackHistory
+                        trackPoints = monthGpsPoints
                     )
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -421,7 +422,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
 
                     HorizontalDivider(color = Color.LightGray.copy(alpha = 0.4f))
 
-                    ReportRow("🚗 Distance GPS parcourue", "${(kotlin.math.round(totalGpsDistanceKm * 10.0) / 10.0)} km", Color(0xFF1976D2))
+                    ReportRow("🚗 Distance de déplacement", "${(round(totalMonthDistanceKm * 10.0) / 10.0)} km", Color(0xFF1976D2))
                     ReportRow("💶 Total des frais engagés", "$totalExpenses €", Color(0xFF388E3C))
                 }
             }
@@ -462,8 +463,22 @@ fun ReportScreen(viewModel: CalendarViewModel) {
             }
         } else {
             // RAPPORT ANNUEL
+            val startOfYear = LocalDate(selectedYear, 1, 1)
+            val endOfYear = LocalDate(selectedYear, 12, 31)
+
             val yearDays = remember(viewModel.workDays, selectedYear) {
                 viewModel.workDays.values.filter { it.date.year == selectedYear }
+            }
+
+            val yearGpsPoints = remember(selectedYear, trackHistory) {
+                val stored = GpsStorage.getPointsForPeriod(startOfYear, endOfYear)
+                if (stored.isNotEmpty()) stored else trackHistory
+            }
+
+            val totalYearDistanceKm = remember(yearDays, yearGpsPoints) {
+                val manualDistance = yearDays.sumOf { it.distanceKm }
+                val gpsDistance = GpsStorage.calculateDistanceKm(yearGpsPoints)
+                max(manualDistance, gpsDistance)
             }
 
             val totalWorkedDaysYear = yearDays.count { it.type == DayType.WORKED }
@@ -508,6 +523,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                         "Moyenne hebdo sur l'année" to "${formatH(yearlyWeeklyAvg)} / sem (réf. 35h)",
                         "Total RTT pris" to "$totalRttYear jours",
                         "Total Congés payés" to "$totalLeaveYear jours",
+                        "Distance GPS / Déplacement" to "${(round(totalYearDistanceKm * 10.0) / 10.0)} km",
                         "Total des frais" to "$totalExpensesYear €"
                     )
                     pdfExporter.exportReportPdf(
@@ -515,7 +531,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                         subtitle = "Généré par TimeCraft - Bilan annuel",
                         metrics = metrics,
                         clientBreakdown = emptyList(),
-                        trackPoints = trackHistory
+                        trackPoints = yearGpsPoints
                     )
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -543,6 +559,7 @@ fun ReportScreen(viewModel: CalendarViewModel) {
 
                     HorizontalDivider(color = Color.LightGray.copy(alpha = 0.4f))
 
+                    ReportRow("🚗 Distance de déplacement", "${(round(totalYearDistanceKm * 10.0) / 10.0)} km", Color(0xFF1976D2))
                     ReportRow("💶 Total des frais de l'année", "$totalExpensesYear €", Color(0xFF388E3C))
                 }
             }

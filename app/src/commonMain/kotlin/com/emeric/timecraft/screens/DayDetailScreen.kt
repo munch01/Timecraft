@@ -16,12 +16,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import com.emeric.timecraft.getSettingsStorage
 import com.emeric.timecraft.model.ClientSchedule
 import com.emeric.timecraft.model.DayType
 import com.emeric.timecraft.model.DefaultSchedules
 import com.emeric.timecraft.model.Expense
 import com.emeric.timecraft.model.WorkDay
+import com.emeric.timecraft.utils.GpsStorage
 import kotlinx.datetime.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -115,6 +119,17 @@ fun DayDetailScreen(
 
     var expenses by remember { mutableStateOf(initialWorkDay?.expenses ?: emptyList<Expense>()) }
     
+    var distanceKm by remember(initialWorkDay, date) {
+        mutableStateOf(
+            if (initialWorkDay != null && initialWorkDay.distanceKm > 0.0) {
+                initialWorkDay.distanceKm
+            } else {
+                val gpsPoints = GpsStorage.getPointsForDate(date.toString())
+                GpsStorage.calculateDistanceKm(gpsPoints)
+            }
+        )
+    }
+
     var showTypeMenu by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -143,8 +158,10 @@ fun DayDetailScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .consumeWindowInsets(padding)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("Type de journée", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
@@ -431,6 +448,29 @@ fun DayDetailScreen(
                 }
             }
 
+            // Section Déplacement / Distance
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Distance de déplacement (km)", fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
+                    OutlinedTextField(
+                        value = if (distanceKm == 0.0) "" else distanceKm.toString(),
+                        onValueChange = { newValue ->
+                            val cleanValue = newValue.replace(',', '.')
+                            distanceKm = cleanValue.toDoubleOrNull() ?: 0.0
+                        },
+                        label = { Text("Distance parcourue (km)") },
+                        leadingIcon = { Icon(Icons.Default.DirectionsCar, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
             // Section Frais
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -452,10 +492,13 @@ fun DayDetailScreen(
                                 OutlinedTextField(
                                     value = if (expense.amount == 0.0) "" else expense.amount.toString(),
                                     onValueChange = { newValue ->
-                                        val amt = newValue.toDoubleOrNull() ?: 0.0
+                                        val cleanValue = newValue.replace(',', '.')
+                                        val amt = cleanValue.toDoubleOrNull() ?: 0.0
                                         expenses = expenses.toMutableList().apply { set(index, expense.copy(amount = amt)) }
                                     },
                                     label = { Text("Montant (€)") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                    singleLine = true,
                                     modifier = Modifier.weight(1f),
                                     leadingIcon = { Icon(Icons.Default.Euro, contentDescription = null) }
                                 )
@@ -469,6 +512,8 @@ fun DayDetailScreen(
                                     expenses = expenses.toMutableList().apply { set(index, expense.copy(description = newValue)) }
                                 },
                                 label = { Text("Description") },
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             if (index < expenses.size - 1) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -491,6 +536,7 @@ fun DayDetailScreen(
                             date = date,
                             type = selectedType,
                             isWorked = selectedType == DayType.WORKED,
+                            distanceKm = distanceKm,
                             clients = encodedClients,
                             expenses = expenses.filter { it.description.isNotBlank() || it.amount > 0 }
                         )

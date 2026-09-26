@@ -172,6 +172,8 @@ data class WorkDay(
     val type: DayType = DayType.WORKED,
     @SerialName("is_worked")
     val isWorked: Boolean = true,
+    @SerialName("distance_km")
+    val distanceKm: Double = 0.0,
     val expenses: List<Expense> = emptyList(),
     val clients: List<String> = emptyList()
 ) {

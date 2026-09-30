@@ -104,7 +104,16 @@ class CalendarViewModel {
                 }
 
                 val fetchedMap = results.associateBy { it.date }
-                val merged = workDays + fetchedMap
+                val merged = workDays.toMutableMap()
+                fetchedMap.forEach { (date, fetchedWorkDay) ->
+                    val localWorkDay = workDays[date]
+                    val finalDistance = if (fetchedWorkDay.distanceKm > 0.0) {
+                        fetchedWorkDay.distanceKm
+                    } else {
+                        localWorkDay?.distanceKm ?: 0.0
+                    }
+                    merged[date] = fetchedWorkDay.copy(distanceKm = finalDistance)
+                }
                 workDays = merged
                 saveLocalWorkDays(merged)
             } catch (e: Exception) {

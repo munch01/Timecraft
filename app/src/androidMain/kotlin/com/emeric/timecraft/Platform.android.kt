@@ -162,17 +162,18 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
 
             currentY = metricsStartY + metricsCardHeight + 16f
 
-            // 3. RÉPARTITION PAR CLIENT CARD
+            // 3. RÉPARTITION PAR CLIENT CARD (2 COLONNES)
             if (clientBreakdown.isNotEmpty()) {
                 paint.color = android.graphics.Color.rgb(26, 58, 90)
-                paint.textSize = 14f
+                paint.textSize = 13.5f
                 paint.isFakeBoldText = true
                 canvas.drawText("💼 Répartition par Client", cardLeft, currentY + 12f, paint)
-                currentY += 22f
+                currentY += 20f
 
                 val clientStartY = currentY
-                var clientRowY = currentY + 18f
-                val clientCardHeight = clientBreakdown.size * rowHeight + 10f
+                val numRows = (clientBreakdown.size + 1) / 2
+                val clientRowHeight = 22f
+                val clientCardHeight = numRows * clientRowHeight + 10f
 
                 fillPaint.color = android.graphics.Color.rgb(248, 250, 252)
                 canvas.drawRoundRect(
@@ -187,61 +188,78 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                     10f, 10f, strokePaint
                 )
 
+                val colWidth = (cardWidth - 24f) / 2f
+
                 clientBreakdown.forEachIndexed { index, (client, hrs) ->
-                    if (index % 2 == 1) {
-                        fillPaint.color = android.graphics.Color.rgb(240, 244, 250)
-                        canvas.drawRect(
-                            cardLeft + 2f, clientRowY - 14f,
-                            cardRight - 2f, clientRowY + rowHeight - 14f,
-                            fillPaint
-                        )
+                    val col = index % 2
+                    val row = index / 2
+                    val itemX = if (col == 0) cardLeft + 12f else cardLeft + colWidth + 20f
+                    val itemRowY = clientStartY + 16f + (row * clientRowHeight)
+
+                    if (col == 1) {
+                        strokePaint.color = android.graphics.Color.rgb(230, 235, 245)
+                        canvas.drawLine(cardLeft + colWidth + 10f, clientStartY + 4f, cardLeft + colWidth + 10f, clientStartY + clientCardHeight - 4f, strokePaint)
                     }
 
                     paint.color = android.graphics.Color.rgb(40, 50, 60)
-                    paint.textSize = 10.5f
+                    paint.textSize = 10f
                     paint.isFakeBoldText = true
-                    canvas.drawText(client, cardLeft + 12f, clientRowY, paint)
+                    canvas.drawText(client, itemX, itemRowY, paint)
 
                     paint.color = android.graphics.Color.rgb(26, 58, 90)
-                    paint.textSize = 10.5f
+                    paint.textSize = 10f
                     paint.isFakeBoldText = true
                     val hrsWidth = paint.measureText(hrs)
-                    canvas.drawText(hrs, cardRight - 12f - hrsWidth, clientRowY, paint)
-
-                    clientRowY += rowHeight
+                    canvas.drawText(hrs, itemX + colWidth - 12f - hrsWidth, itemRowY, paint)
                 }
 
-                currentY = clientStartY + clientCardHeight + 16f
+                currentY = clientStartY + clientCardHeight + 14f
             }
 
-            // 4. MAP VISUALIZATION OF DISPLACEMENTS CARD
+            // 4. CARTE DES DÉPLACEMENTS (AGRANDIE AVEC FOND DE CARTE)
             if (trackPoints.size >= 2) {
                 paint.color = android.graphics.Color.rgb(26, 58, 90)
-                paint.textSize = 14f
+                paint.textSize = 13.5f
                 paint.isFakeBoldText = true
                 canvas.drawText("🗺️ Carte & Zone de Déplacements GPS", cardLeft, currentY + 12f, paint)
-                currentY += 22f
+                currentY += 20f
 
                 val mapTopY = currentY
-                val mapHeight = 175f
+                val mapHeight = 240f
                 val mapBottomY = mapTopY + mapHeight
 
-                fillPaint.color = android.graphics.Color.rgb(224, 232, 236) // Terrain background (#E0E8EC)
                 val mapRect = android.graphics.RectF(cardLeft, mapTopY, cardRight, mapBottomY)
-                canvas.drawRoundRect(mapRect, 10f, 10f, fillPaint)
 
-                // Grid background pattern
-                strokePaint.color = android.graphics.Color.rgb(205, 215, 222)
-                strokePaint.strokeWidth = 1f
-                var gx = cardLeft + 30f
-                while (gx < cardRight) {
-                    canvas.drawLine(gx, mapTopY, gx, mapBottomY, strokePaint)
-                    gx += 40f
+                canvas.save()
+                val clipPath = android.graphics.Path()
+                clipPath.addRoundRect(mapRect, 10f, 10f, android.graphics.Path.Direction.CW)
+                canvas.clipPath(clipPath)
+
+                // Base Map Terrain fill
+                fillPaint.color = android.graphics.Color.rgb(229, 236, 239)
+                canvas.drawRect(mapRect, fillPaint)
+
+                // Green Areas / Parks
+                fillPaint.color = android.graphics.Color.rgb(216, 234, 211)
+                canvas.drawRect(cardLeft + 20f, mapTopY + 30f, cardLeft + 140f, mapTopY + 110f, fillPaint)
+                canvas.drawRect(cardRight - 160f, mapBottomY - 90f, cardRight - 30f, mapBottomY - 15f, fillPaint)
+
+                // Water Features
+                fillPaint.color = android.graphics.Color.rgb(198, 226, 255)
+                canvas.drawRect(cardLeft + 180f, mapTopY + 10f, cardLeft + 260f, mapBottomY - 10f, fillPaint)
+
+                // Road Grid Network
+                strokePaint.color = android.graphics.Color.WHITE
+                strokePaint.strokeWidth = 4f
+                var rX = cardLeft + 20f
+                while (rX < cardRight) {
+                    canvas.drawLine(rX, mapTopY, rX, mapBottomY, strokePaint)
+                    rX += 45f
                 }
-                var gy = mapTopY + 30f
-                while (gy < mapBottomY) {
-                    canvas.drawLine(cardLeft, gy, cardRight, gy, strokePaint)
-                    gy += 40f
+                var rY = mapTopY + 20f
+                while (rY < mapBottomY) {
+                    canvas.drawLine(cardLeft, rY, cardRight, rY, strokePaint)
+                    rY += 45f
                 }
 
                 // Compute bounding box
@@ -258,7 +276,7 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                 val padMinLon = minLon - lonSpan * 0.15
                 val padMaxLon = maxLon + lonSpan * 0.15
 
-                val innerMargin = 18f
+                val innerMargin = 20f
                 val drawW = cardWidth - innerMargin * 2
                 val drawH = mapHeight - innerMargin * 2
 
@@ -280,18 +298,18 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                     routePath.lineTo(toMapPdfX(pt.longitude), toMapPdfY(pt.latitude))
                 }
 
-                // Polyline casing / shadow
+                // Polyline casing
                 strokePaint.color = android.graphics.Color.WHITE
-                strokePaint.strokeWidth = 5.5f
+                strokePaint.strokeWidth = 7f
                 canvas.drawPath(routePath, strokePaint)
 
                 // Polyline main track
-                strokePaint.color = android.graphics.Color.rgb(25, 118, 210) // Blue #1976D2
-                strokePaint.strokeWidth = 3f
+                strokePaint.color = android.graphics.Color.rgb(21, 101, 192)
+                strokePaint.strokeWidth = 4f
                 canvas.drawPath(routePath, strokePaint)
 
                 // Waypoints
-                fillPaint.color = android.graphics.Color.rgb(25, 118, 210)
+                fillPaint.color = android.graphics.Color.rgb(21, 101, 192)
                 trackPoints.forEach { pt ->
                     canvas.drawCircle(toMapPdfX(pt.longitude), toMapPdfY(pt.latitude), 2.5f, fillPaint)
                 }
@@ -300,18 +318,20 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                 val startX = toMapPdfX(firstPt.longitude)
                 val startY = toMapPdfY(firstPt.latitude)
                 fillPaint.color = android.graphics.Color.rgb(46, 125, 50)
-                canvas.drawCircle(startX, startY, 6.5f, fillPaint)
+                canvas.drawCircle(startX, startY, 7f, fillPaint)
                 fillPaint.color = android.graphics.Color.WHITE
-                canvas.drawCircle(startX, startY, 2.5f, fillPaint)
+                canvas.drawCircle(startX, startY, 3f, fillPaint)
 
                 // End Marker (Red Circle)
                 val lastPt = trackPoints.last()
                 val endX = toMapPdfX(lastPt.longitude)
                 val endY = toMapPdfY(lastPt.latitude)
                 fillPaint.color = android.graphics.Color.rgb(198, 40, 40)
-                canvas.drawCircle(endX, endY, 6.5f, fillPaint)
+                canvas.drawCircle(endX, endY, 7f, fillPaint)
                 fillPaint.color = android.graphics.Color.WHITE
-                canvas.drawCircle(endX, endY, 2.5f, fillPaint)
+                canvas.drawCircle(endX, endY, 3f, fillPaint)
+
+                canvas.restore()
 
                 // Map Container Border
                 strokePaint.color = android.graphics.Color.rgb(26, 58, 90)

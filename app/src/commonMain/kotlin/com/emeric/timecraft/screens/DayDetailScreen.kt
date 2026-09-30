@@ -164,6 +164,29 @@ fun DayDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            val holidayName = com.emeric.timecraft.utils.FrenchHolidays.getHolidayName(date)
+            if (holidayName != null) {
+                Surface(
+                    color = Color(0xFFFFF0E5),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🇫🇷", fontSize = 18.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Jour férié : $holidayName",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFD84315),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+
             Text("Type de journée", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1A3A5A))
             
             Box(modifier = Modifier.fillMaxWidth()) {

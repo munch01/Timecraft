@@ -131,9 +131,20 @@ fun DayItem(
     workDay: com.emeric.timecraft.model.WorkDay?,
     onClick: () -> Unit
 ) {
+    val holidayName = com.emeric.timecraft.utils.FrenchHolidays.getHolidayName(date)
+    val isHoliday = holidayName != null
+
     val isMarked = workDay != null
-    val bgColor = workDay?.type?.getColor() ?: Color(0xFFF4F6F8)
-    val textColor = if (isMarked) Color.White else Color(0xFF2C3E50)
+    val bgColor = when {
+        isMarked -> workDay.type.getColor()
+        isHoliday -> Color(0xFFFFF0E5)
+        else -> Color(0xFFF4F6F8)
+    }
+    val textColor = when {
+        isMarked -> Color.White
+        isHoliday -> Color(0xFFD84315)
+        else -> Color(0xFF2C3E50)
+    }
 
     Surface(
         modifier = Modifier
@@ -145,22 +156,30 @@ fun DayItem(
         shadowElevation = if (isMarked) 2.dp else 0.dp
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 4.dp, horizontal = 2.dp),
+            modifier = Modifier.padding(vertical = 2.dp, horizontal = 2.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = date.dayOfMonth.toString(),
                 color = textColor,
-                fontWeight = if (isMarked) FontWeight.Bold else FontWeight.SemiBold,
-                fontSize = 17.sp
+                fontWeight = if (isMarked || isHoliday) FontWeight.Bold else FontWeight.SemiBold,
+                fontSize = 16.sp
             )
             if (isMarked && workDay.totalWorkedHours() > 0) {
                 Text(
                     text = workDay.formattedTotalHours(),
                     color = Color.White.copy(alpha = 0.95f),
-                    fontSize = 10.sp,
+                    fontSize = 9.5.sp,
                     fontWeight = FontWeight.Medium
+                )
+            } else if (isHoliday) {
+                Text(
+                    text = "🎉 Férié",
+                    color = Color(0xFFD84315),
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
                 )
             }
         }

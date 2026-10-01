@@ -26,13 +26,16 @@ import com.emeric.timecraft.getLocationTracker
 import com.emeric.timecraft.model.DayType
 import com.emeric.timecraft.utils.DateTimeUtils
 import com.emeric.timecraft.viewmodel.CalendarViewModel
+import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.Month
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.painterResource
 import timecraft.app.generated.resources.Res
 import timecraft.app.generated.resources.*
 
 import com.emeric.timecraft.utils.*
-import kotlin.math.max
 import kotlin.math.round
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -250,7 +253,10 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 }
             }
 
-            val daysInMonthCount = DateTimeUtils.getDaysInMonth(currentMonth.year, currentMonth.month).size
+            val monthDates = remember(currentMonth) {
+                DateTimeUtils.getDaysInMonth(currentMonth.year, currentMonth.month)
+            }
+            val daysInMonthCount = monthDates.size
             val startOfMonth = LocalDate(currentMonth.year, currentMonth.month, 1)
             val endOfMonth = LocalDate(currentMonth.year, currentMonth.month, daysInMonthCount)
 
@@ -259,10 +265,8 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 if (stored.isNotEmpty()) stored else trackHistory
             }
 
-            val totalMonthDistanceKm = remember(monthDays, monthGpsPoints) {
-                val manualDistance = monthDays.sumOf { it.distanceKm }
-                val gpsDistance = GpsStorage.calculateDistanceKm(monthGpsPoints)
-                max(manualDistance, gpsDistance)
+            val totalMonthDistanceKm = remember(monthDates, viewModel.workDays, trackHistory) {
+                calculateTotalPeriodDistanceKm(monthDates, viewModel.workDays, trackHistory)
             }
 
             val workedDaysCount = monthDays.count { it.type == DayType.WORKED }
@@ -470,15 +474,19 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 viewModel.workDays.values.filter { it.date.year == selectedYear }
             }
 
+            val yearDates = remember(selectedYear) {
+                Month.entries.flatMap { month ->
+                    DateTimeUtils.getDaysInMonth(selectedYear, month)
+                }
+            }
+
             val yearGpsPoints = remember(selectedYear, trackHistory) {
                 val stored = GpsStorage.getPointsForPeriod(startOfYear, endOfYear)
                 if (stored.isNotEmpty()) stored else trackHistory
             }
 
-            val totalYearDistanceKm = remember(yearDays, yearGpsPoints) {
-                val manualDistance = yearDays.sumOf { it.distanceKm }
-                val gpsDistance = GpsStorage.calculateDistanceKm(yearGpsPoints)
-                max(manualDistance, gpsDistance)
+            val totalYearDistanceKm = remember(yearDates, viewModel.workDays, trackHistory) {
+                calculateTotalPeriodDistanceKm(yearDates, viewModel.workDays, trackHistory)
             }
 
             val totalWorkedDaysYear = yearDays.count { it.type == DayType.WORKED }
@@ -621,4 +629,35 @@ private fun ReportRow(label: String, value: String, color: Color) {
         }
         Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF1A3A5A))
     }
+}
+
+private fun calculateTotalPeriodDistanceKm(
+    dates: List<LocalDate>,
+    workDaysMap: Map<LocalDate, com.emeric.timecraft.model.WorkDay>,
+    trackHistory: List<com.emeric.timecraft.LocationPoint>
+): Double {
+    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    val trackedDatesSet = GpsStorage.getAllTrackedDates().toSet()
+    var totalKm = 0.0
+
+    for (date in dates) {
+        val workDay = workDaysMap[date]
+        val manualKm = workDay?.distanceKm ?: 0.0
+        if (manualKm > 0.0) {
+            totalKm += manualKm
+        } else {
+            val dateStr = date.toString()
+            val points = if (trackedDatesSet.contains(dateStr)) {
+                GpsStorage.getPointsForDate(dateStr)
+            } else if (date == today) {
+                trackHistory
+            } else {
+                emptyList()
+            }
+            if (points.isNotEmpty()) {
+                totalKm += GpsStorage.calculateDistanceKm(points)
+            }
+        }
+    }
+    return totalKm
 }

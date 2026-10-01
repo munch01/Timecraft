@@ -46,7 +46,7 @@ fun SettingsScreen(
     val biometryManager = remember { getBiometryManager() }
     val coroutineScope = rememberCoroutineScope()
     val currentUser = supabase.auth.currentSessionOrNull()?.user
-    val appVersion = "1.0.6"
+    val appVersion = "1.0.10"
 
     val currentLang = LanguageManager.currentLanguage
     val strings = getAppStrings(currentLang)

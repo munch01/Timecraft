@@ -5,6 +5,56 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 
+private fun lonToWorldX(lon: Double, zoom: Int): Double {
+    val n = 1 shl zoom
+    return (lon + 180.0) / 360.0 * n * 256.0
+}
+
+private fun latToWorldY(lat: Double, zoom: Int): Double {
+    val rad = lat * kotlin.math.PI / 180.0
+    val n = 1 shl zoom
+    return (1.0 - kotlin.math.ln(kotlin.math.tan(rad) + 1.0 / kotlin.math.cos(rad)) / kotlin.math.PI) / 2.0 * n * 256.0
+}
+
+private fun fetchMapTile(context: Context, zoom: Int, x: Int, y: Int): android.graphics.Bitmap? {
+    val cacheDir = java.io.File(context.cacheDir, "map_tiles").apply { mkdirs() }
+    val tileFile = java.io.File(cacheDir, "tile_${zoom}_${x}_${y}.png")
+    if (tileFile.exists() && tileFile.length() > 0) {
+        try {
+            return android.graphics.BitmapFactory.decodeFile(tileFile.absolutePath)
+        } catch (e: Exception) {
+            tileFile.delete()
+        }
+    }
+
+    val urls = listOf(
+        "https://a.basemaps.cartocdn.com/light_all/$zoom/$x/$y.png",
+        "https://b.basemaps.cartocdn.com/light_all/$zoom/$x/$y.png",
+        "https://tile.openstreetmap.org/$zoom/$x/$y.png"
+    )
+
+    for (urlStr in urls) {
+        try {
+            val url = java.net.URL(urlStr)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 3500
+            conn.readTimeout = 3500
+            conn.setRequestProperty("User-Agent", "TimeCraft-Android/1.0 (Contact: emeric@timecraft.app)")
+            if (conn.responseCode == 200) {
+                conn.inputStream.use { input ->
+                    tileFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                return android.graphics.BitmapFactory.decodeFile(tileFile.absolutePath)
+            }
+        } catch (e: Exception) {
+            // continue
+        }
+    }
+    return null
+}
+
 class AndroidPlatform(private val context: Context) : Platform {
     override val name: String = "Android ${android.os.Build.VERSION.SDK_INT}"
     
@@ -216,7 +266,7 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                 currentY = clientStartY + clientCardHeight + 14f
             }
 
-            // 4. CARTE DES DÉPLACEMENTS (AGRANDIE AVEC FOND DE CARTE)
+            // 4. CARTE DES DÉPLACEMENTS (FOND DE CARTE RÉEL OPENSTREETMAP / CARTO)
             if (trackPoints.size >= 2) {
                 paint.color = android.graphics.Color.rgb(26, 58, 90)
                 paint.textSize = 13.5f
@@ -236,31 +286,8 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                 canvas.clipPath(clipPath)
 
                 // Base Map Terrain fill
-                fillPaint.color = android.graphics.Color.rgb(229, 236, 239)
+                fillPaint.color = android.graphics.Color.rgb(238, 242, 245)
                 canvas.drawRect(mapRect, fillPaint)
-
-                // Green Areas / Parks
-                fillPaint.color = android.graphics.Color.rgb(216, 234, 211)
-                canvas.drawRect(cardLeft + 20f, mapTopY + 30f, cardLeft + 140f, mapTopY + 110f, fillPaint)
-                canvas.drawRect(cardRight - 160f, mapBottomY - 90f, cardRight - 30f, mapBottomY - 15f, fillPaint)
-
-                // Water Features
-                fillPaint.color = android.graphics.Color.rgb(198, 226, 255)
-                canvas.drawRect(cardLeft + 180f, mapTopY + 10f, cardLeft + 260f, mapBottomY - 10f, fillPaint)
-
-                // Road Grid Network
-                strokePaint.color = android.graphics.Color.WHITE
-                strokePaint.strokeWidth = 4f
-                var rX = cardLeft + 20f
-                while (rX < cardRight) {
-                    canvas.drawLine(rX, mapTopY, rX, mapBottomY, strokePaint)
-                    rX += 45f
-                }
-                var rY = mapTopY + 20f
-                while (rY < mapBottomY) {
-                    canvas.drawLine(cardLeft, rY, cardRight, rY, strokePaint)
-                    rY += 45f
-                }
 
                 // Compute bounding box
                 val minLat = trackPoints.minOf { it.latitude }
@@ -268,24 +295,90 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                 val minLon = trackPoints.minOf { it.longitude }
                 val maxLon = trackPoints.maxOf { it.longitude }
 
-                val latSpan = kotlin.math.max(maxLat - minLat, 0.005)
-                val lonSpan = kotlin.math.max(maxLon - minLon, 0.005)
+                val latSpanDeg = kotlin.math.max(maxLat - minLat, 0.002)
+                val lonSpanDeg = kotlin.math.max(maxLon - minLon, 0.002)
 
-                val padMinLat = minLat - latSpan * 0.15
-                val padMaxLat = maxLat + latSpan * 0.15
-                val padMinLon = minLon - lonSpan * 0.15
-                val padMaxLon = maxLon + lonSpan * 0.15
+                val padMinLat = minLat - latSpanDeg * 0.12
+                val padMaxLat = maxLat + latSpanDeg * 0.12
+                val padMinLon = minLon - lonSpanDeg * 0.12
+                val padMaxLon = maxLon + lonSpanDeg * 0.12
 
-                val innerMargin = 20f
-                val drawW = cardWidth - innerMargin * 2
-                val drawH = mapHeight - innerMargin * 2
+                // Calculate zoom level
+                var zoom = 16
+                while (zoom > 2) {
+                    val wX1 = lonToWorldX(padMinLon, zoom)
+                    val wX2 = lonToWorldX(padMaxLon, zoom)
+                    val wY1 = latToWorldY(padMaxLat, zoom)
+                    val wY2 = latToWorldY(padMinLat, zoom)
+                    val sX = kotlin.math.abs(wX2 - wX1)
+                    val sY = kotlin.math.abs(wY2 - wY1)
+                    if (sX <= cardWidth.toDouble() * 0.85 && sY <= mapHeight.toDouble() * 0.85) {
+                        break
+                    }
+                    zoom--
+                }
+
+                val centerWX = (lonToWorldX(padMinLon, zoom) + lonToWorldX(padMaxLon, zoom)) / 2.0
+                val centerWY = (latToWorldY(padMinLat, zoom) + latToWorldY(padMaxLat, zoom)) / 2.0
+
+                val rawSpanX = kotlin.math.abs(lonToWorldX(padMaxLon, zoom) - lonToWorldX(padMinLon, zoom))
+                val rawSpanY = kotlin.math.abs(latToWorldY(padMinLat, zoom) - latToWorldY(padMaxLat, zoom))
+
+                val scale = kotlin.math.min(cardWidth / kotlin.math.max(rawSpanX, 1.0), mapHeight / kotlin.math.max(rawSpanY, 1.0))
+
+                val centerX = cardLeft + cardWidth / 2f
+                val centerY = mapTopY + mapHeight / 2f
 
                 fun toMapPdfX(lon: Double): Float {
-                    return (cardLeft + innerMargin) + ((lon - padMinLon) / (padMaxLon - padMinLon)).toFloat() * drawW
+                    return (centerX + (lonToWorldX(lon, zoom) - centerWX) * scale).toFloat()
                 }
 
                 fun toMapPdfY(lat: Double): Float {
-                    return (mapTopY + innerMargin) + ((padMaxLat - lat) / (padMaxLat - padMinLat)).toFloat() * drawH
+                    return (centerY + (latToWorldY(lat, zoom) - centerWY) * scale).toFloat()
+                }
+
+                // Render Map Tiles
+                val minWX = centerWX - (cardWidth / 2f) / scale
+                val maxWX = centerWX + (cardWidth / 2f) / scale
+                val minWY = centerWY - (mapHeight / 2f) / scale
+                val maxWY = centerWY + (mapHeight / 2f) / scale
+
+                val minTileX = kotlin.math.floor(minWX / 256.0).toInt()
+                val maxTileX = kotlin.math.floor(maxWX / 256.0).toInt()
+                val minTileY = kotlin.math.floor(minWY / 256.0).toInt()
+                val maxTileY = kotlin.math.floor(maxWY / 256.0).toInt()
+
+                var tilesRendered = 0
+                for (tx in minTileX..maxTileX) {
+                    for (ty in minTileY..maxTileY) {
+                        val tileLeft = centerX + (tx * 256.0 - centerWX) * scale
+                        val tileTop = centerY + (ty * 256.0 - centerWY) * scale
+                        val tileRight = tileLeft + 256.0 * scale
+                        val tileBottom = tileTop + 256.0 * scale
+
+                        val destRect = android.graphics.RectF(tileLeft.toFloat(), tileTop.toFloat(), tileRight.toFloat(), tileBottom.toFloat())
+                        val tileBmp = fetchMapTile(context, zoom, tx, ty)
+                        if (tileBmp != null) {
+                            canvas.drawBitmap(tileBmp, null as android.graphics.Rect?, destRect, paint)
+                            tilesRendered++
+                        }
+                    }
+                }
+
+                // Vector grid fallback if offline
+                if (tilesRendered == 0) {
+                    strokePaint.color = android.graphics.Color.rgb(205, 215, 222)
+                    strokePaint.strokeWidth = 1f
+                    var gx = cardLeft + 30f
+                    while (gx < cardRight) {
+                        canvas.drawLine(gx, mapTopY, gx, mapBottomY, strokePaint)
+                        gx += 40f
+                    }
+                    var gy = mapTopY + 30f
+                    while (gy < mapBottomY) {
+                        canvas.drawLine(cardLeft, gy, cardRight, gy, strokePaint)
+                        gy += 40f
+                    }
                 }
 
                 // Draw GPS Polyline Path
@@ -304,7 +397,7 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                 canvas.drawPath(routePath, strokePaint)
 
                 // Polyline main track
-                strokePaint.color = android.graphics.Color.rgb(21, 101, 192)
+                strokePaint.color = android.graphics.Color.rgb(21, 101, 192) // Vibrant Blue #1565C0
                 strokePaint.strokeWidth = 4f
                 canvas.drawPath(routePath, strokePaint)
 
@@ -339,7 +432,7 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                 canvas.drawRoundRect(mapRect, 10f, 10f, strokePaint)
 
                 // Map Info Badge (Pill in Top Right of Map)
-                val badgeText = "📍 Zone GPS • ${trackPoints.size} points"
+                val badgeText = if (tilesRendered > 0) "🗺️ Carte OSM • ${trackPoints.size} pts" else "📍 Zone GPS • ${trackPoints.size} pts"
                 paint.textSize = 9.5f
                 paint.isFakeBoldText = true
                 val badgeTextW = paint.measureText(badgeText)

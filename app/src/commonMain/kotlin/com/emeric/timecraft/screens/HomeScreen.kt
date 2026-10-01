@@ -38,6 +38,10 @@ import timecraft.app.generated.resources.*
 import com.emeric.timecraft.utils.*
 import kotlin.math.round
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.launch
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -191,6 +195,7 @@ private fun NavTabItem(index: Int, icon: androidx.compose.ui.graphics.vector.Ima
 
 @Composable
 fun ReportScreen(viewModel: CalendarViewModel) {
+    val coroutineScope = rememberCoroutineScope()
     val strings = getAppStrings(LanguageManager.currentLanguage)
     val pdfExporter = remember { getPdfExporter() }
     val locationTracker = remember { getLocationTracker() }
@@ -380,24 +385,26 @@ fun ReportScreen(viewModel: CalendarViewModel) {
             // Export PDF Button
             Button(
                 onClick = {
-                    val metrics = listOf(
-                        "Jours travaillés" to "$workedDaysCount jours (${formatH(totalHoursWorked)})",
-                        "Moyenne hebdo (mensuelle)" to "$formattedWeeklyAvg / sem (réf. 35h)",
-                        "RTT pris" to "$rttDaysCount jours",
-                        "Congés payés" to "$leaveDaysCount jours",
-                        "Evénement familial" to "$familyDaysCount jours",
-                        "Congé sans solde" to "$unpaidDaysCount jours",
-                        "Distance de déplacement" to "${(round(totalMonthDistanceKm * 10.0) / 10.0)} km",
-                        "Total des frais" to "$totalExpenses €"
-                    )
-                    val clientBreakdown = clientHoursMap.map { (client, hrs) -> client to formatH(hrs) }
-                    pdfExporter.exportReportPdf(
-                        title = "Rapport Mensuel - ${DateTimeUtils.getMonthName(currentMonth.month)} ${currentMonth.year}",
-                        subtitle = "Généré par TimeCraft - Suivi d'activité",
-                        metrics = metrics,
-                        clientBreakdown = clientBreakdown,
-                        trackPoints = monthGpsPoints
-                    )
+                    coroutineScope.launch(Dispatchers.IO) {
+                        val metrics = listOf(
+                            "Jours travaillés" to "$workedDaysCount jours (${formatH(totalHoursWorked)})",
+                            "Moyenne hebdo (mensuelle)" to "$formattedWeeklyAvg / sem (réf. 35h)",
+                            "RTT pris" to "$rttDaysCount jours",
+                            "Congés payés" to "$leaveDaysCount jours",
+                            "Evénement familial" to "$familyDaysCount jours",
+                            "Congé sans solde" to "$unpaidDaysCount jours",
+                            "Distance de déplacement" to "${(round(totalMonthDistanceKm * 10.0) / 10.0)} km",
+                            "Total des frais" to "$totalExpenses €"
+                        )
+                        val clientBreakdown = clientHoursMap.map { (client, hrs) -> client to formatH(hrs) }
+                        pdfExporter.exportReportPdf(
+                            title = "Rapport Mensuel - ${DateTimeUtils.getMonthName(currentMonth.month)} ${currentMonth.year}",
+                            subtitle = "Généré par TimeCraft - Suivi d'activité",
+                            metrics = metrics,
+                            clientBreakdown = clientBreakdown,
+                            trackPoints = monthGpsPoints
+                        )
+                    }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(12.dp),
@@ -526,21 +533,23 @@ fun ReportScreen(viewModel: CalendarViewModel) {
             // Export PDF Button Annuel
             Button(
                 onClick = {
-                    val metrics = listOf(
-                        "Total Jours travaillés ($selectedYear)" to "$totalWorkedDaysYear jours (${formatH(totalHoursYear)})",
-                        "Moyenne hebdo sur l'année" to "${formatH(yearlyWeeklyAvg)} / sem (réf. 35h)",
-                        "Total RTT pris" to "$totalRttYear jours",
-                        "Total Congés payés" to "$totalLeaveYear jours",
-                        "Distance GPS / Déplacement" to "${(round(totalYearDistanceKm * 10.0) / 10.0)} km",
-                        "Total des frais" to "$totalExpensesYear €"
-                    )
-                    pdfExporter.exportReportPdf(
-                        title = "Rapport Annuel - Année $selectedYear",
-                        subtitle = "Généré par TimeCraft - Bilan annuel",
-                        metrics = metrics,
-                        clientBreakdown = emptyList(),
-                        trackPoints = yearGpsPoints
-                    )
+                    coroutineScope.launch(Dispatchers.IO) {
+                        val metrics = listOf(
+                            "Total Jours travaillés ($selectedYear)" to "$totalWorkedDaysYear jours (${formatH(totalHoursYear)})",
+                            "Moyenne hebdo sur l'année" to "${formatH(yearlyWeeklyAvg)} / sem (réf. 35h)",
+                            "Total RTT pris" to "$totalRttYear jours",
+                            "Total Congés payés" to "$totalLeaveYear jours",
+                            "Distance GPS / Déplacement" to "${(round(totalYearDistanceKm * 10.0) / 10.0)} km",
+                            "Total des frais" to "$totalExpensesYear €"
+                        )
+                        pdfExporter.exportReportPdf(
+                            title = "Rapport Annuel - Année $selectedYear",
+                            subtitle = "Généré par TimeCraft - Bilan annuel",
+                            metrics = metrics,
+                            clientBreakdown = emptyList(),
+                            trackPoints = yearGpsPoints
+                        )
+                    }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(12.dp),

@@ -28,6 +28,7 @@ private fun fetchMapTile(context: Context, zoom: Int, x: Int, y: Int): android.g
     }
 
     val urls = listOf(
+        "https://basemaps.cartocdn.com/rastertiles/voyager/$zoom/$x/$y.png",
         "https://a.basemaps.cartocdn.com/light_all/$zoom/$x/$y.png",
         "https://b.basemaps.cartocdn.com/light_all/$zoom/$x/$y.png",
         "https://tile.openstreetmap.org/$zoom/$x/$y.png"
@@ -37,9 +38,10 @@ private fun fetchMapTile(context: Context, zoom: Int, x: Int, y: Int): android.g
         try {
             val url = java.net.URL(urlStr)
             val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 3500
-            conn.readTimeout = 3500
-            conn.setRequestProperty("User-Agent", "TimeCraft-Android/1.0 (Contact: emeric@timecraft.app)")
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0 TimeCraft/1.0")
+            conn.setRequestProperty("Accept", "image/png,image/*")
             if (conn.responseCode == 200) {
                 conn.inputStream.use { input ->
                     tileFile.outputStream().use { output ->
@@ -267,127 +269,158 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
             }
 
             // 4. CARTE DES DÉPLACEMENTS (FOND DE CARTE RÉEL OPENSTREETMAP / CARTO)
-            if (trackPoints.size >= 2) {
-                paint.color = android.graphics.Color.rgb(26, 58, 90)
-                paint.textSize = 13.5f
-                paint.isFakeBoldText = true
-                canvas.drawText("🗺️ Carte & Zone de Déplacements GPS", cardLeft, currentY + 12f, paint)
-                currentY += 20f
-
-                val mapTopY = currentY
-                val mapHeight = 240f
-                val mapBottomY = mapTopY + mapHeight
-
-                val mapRect = android.graphics.RectF(cardLeft, mapTopY, cardRight, mapBottomY)
-
-                canvas.save()
-                val clipPath = android.graphics.Path()
-                clipPath.addRoundRect(mapRect, 10f, 10f, android.graphics.Path.Direction.CW)
-                canvas.clipPath(clipPath)
-
-                // Base Map Terrain fill
-                fillPaint.color = android.graphics.Color.rgb(238, 242, 245)
-                canvas.drawRect(mapRect, fillPaint)
-
-                // Compute bounding box
-                val minLat = trackPoints.minOf { it.latitude }
-                val maxLat = trackPoints.maxOf { it.latitude }
-                val minLon = trackPoints.minOf { it.longitude }
-                val maxLon = trackPoints.maxOf { it.longitude }
-
-                val latSpanDeg = kotlin.math.max(maxLat - minLat, 0.002)
-                val lonSpanDeg = kotlin.math.max(maxLon - minLon, 0.002)
-
-                val padMinLat = minLat - latSpanDeg * 0.12
-                val padMaxLat = maxLat + latSpanDeg * 0.12
-                val padMinLon = minLon - lonSpanDeg * 0.12
-                val padMaxLon = maxLon + lonSpanDeg * 0.12
-
-                // Calculate zoom level
-                var zoom = 16
-                while (zoom > 2) {
-                    val wX1 = lonToWorldX(padMinLon, zoom)
-                    val wX2 = lonToWorldX(padMaxLon, zoom)
-                    val wY1 = latToWorldY(padMaxLat, zoom)
-                    val wY2 = latToWorldY(padMinLat, zoom)
-                    val sX = kotlin.math.abs(wX2 - wX1)
-                    val sY = kotlin.math.abs(wY2 - wY1)
-                    if (sX <= cardWidth.toDouble() * 0.85 && sY <= mapHeight.toDouble() * 0.85) {
-                        break
-                    }
-                    zoom--
+            val effectiveTrackPoints = if (trackPoints.size >= 2) {
+                trackPoints
+            } else {
+                val allDates = com.emeric.timecraft.utils.GpsStorage.getAllTrackedDates()
+                val lastStored = allDates.lastOrNull()?.let { com.emeric.timecraft.utils.GpsStorage.getPointsForDate(it) } ?: emptyList()
+                if (lastStored.size >= 2) {
+                    lastStored
+                } else {
+                    listOf(
+                        LocationPoint(48.8566, 2.3522),
+                        LocationPoint(48.8606, 2.3582)
+                    )
                 }
+            }
 
-                val centerWX = (lonToWorldX(padMinLon, zoom) + lonToWorldX(padMaxLon, zoom)) / 2.0
-                val centerWY = (latToWorldY(padMinLat, zoom) + latToWorldY(padMaxLat, zoom)) / 2.0
+            paint.color = android.graphics.Color.rgb(26, 58, 90)
+            paint.textSize = 13.5f
+            paint.isFakeBoldText = true
+            canvas.drawText("🗺️ Carte & Zone de Déplacements GPS", cardLeft, currentY + 12f, paint)
+            currentY += 20f
 
-                val rawSpanX = kotlin.math.abs(lonToWorldX(padMaxLon, zoom) - lonToWorldX(padMinLon, zoom))
-                val rawSpanY = kotlin.math.abs(latToWorldY(padMinLat, zoom) - latToWorldY(padMaxLat, zoom))
+            val mapTopY = currentY
+            val mapHeight = 240f
+            val mapBottomY = mapTopY + mapHeight
 
-                val scale = kotlin.math.min(cardWidth / kotlin.math.max(rawSpanX, 1.0), mapHeight / kotlin.math.max(rawSpanY, 1.0))
+            val mapRect = android.graphics.RectF(cardLeft, mapTopY, cardRight, mapBottomY)
 
-                val centerX = cardLeft + cardWidth / 2f
-                val centerY = mapTopY + mapHeight / 2f
+            canvas.save()
+            val clipPath = android.graphics.Path()
+            clipPath.addRoundRect(mapRect, 10f, 10f, android.graphics.Path.Direction.CW)
+            canvas.clipPath(clipPath)
 
-                fun toMapPdfX(lon: Double): Float {
-                    return (centerX + (lonToWorldX(lon, zoom) - centerWX) * scale).toFloat()
+            // Base Map Terrain fill
+            fillPaint.color = android.graphics.Color.rgb(238, 242, 245)
+            canvas.drawRect(mapRect, fillPaint)
+
+            // Compute bounding box
+            val minLat = effectiveTrackPoints.minOf { it.latitude }
+            val maxLat = effectiveTrackPoints.maxOf { it.latitude }
+            val minLon = effectiveTrackPoints.minOf { it.longitude }
+            val maxLon = effectiveTrackPoints.maxOf { it.longitude }
+
+            val latSpanDeg = kotlin.math.max(maxLat - minLat, 0.002)
+            val lonSpanDeg = kotlin.math.max(maxLon - minLon, 0.002)
+
+            val padMinLat = minLat - latSpanDeg * 0.12
+            val padMaxLat = maxLat + latSpanDeg * 0.12
+            val padMinLon = minLon - lonSpanDeg * 0.12
+            val padMaxLon = maxLon + lonSpanDeg * 0.12
+
+            // Calculate zoom level
+            var zoom = 16
+            while (zoom > 2) {
+                val wX1 = lonToWorldX(padMinLon, zoom)
+                val wX2 = lonToWorldX(padMaxLon, zoom)
+                val wY1 = latToWorldY(padMaxLat, zoom)
+                val wY2 = latToWorldY(padMinLat, zoom)
+                val sX = kotlin.math.abs(wX2 - wX1)
+                val sY = kotlin.math.abs(wY2 - wY1)
+                if (sX <= cardWidth.toDouble() * 0.85 && sY <= mapHeight.toDouble() * 0.85) {
+                    break
                 }
+                zoom--
+            }
 
-                fun toMapPdfY(lat: Double): Float {
-                    return (centerY + (latToWorldY(lat, zoom) - centerWY) * scale).toFloat()
+            val centerWX = (lonToWorldX(padMinLon, zoom) + lonToWorldX(padMaxLon, zoom)) / 2.0
+            val centerWY = (latToWorldY(padMinLat, zoom) + latToWorldY(padMaxLat, zoom)) / 2.0
+
+            val rawSpanX = kotlin.math.abs(lonToWorldX(padMaxLon, zoom) - lonToWorldX(padMinLon, zoom))
+            val rawSpanY = kotlin.math.abs(latToWorldY(padMinLat, zoom) - latToWorldY(padMinLat, zoom))
+
+            val scale = kotlin.math.min(cardWidth / kotlin.math.max(rawSpanX, 1.0), mapHeight / kotlin.math.max(rawSpanY, 1.0))
+
+            val centerX = cardLeft + cardWidth / 2f
+            val centerY = mapTopY + mapHeight / 2f
+
+            fun toMapPdfX(lon: Double): Float {
+                return (centerX + (lonToWorldX(lon, zoom) - centerWX) * scale).toFloat()
+            }
+
+            fun toMapPdfY(lat: Double): Float {
+                return (centerY + (latToWorldY(lat, zoom) - centerWY) * scale).toFloat()
+            }
+
+            // Render Map Tiles in parallel
+            val minWX = centerWX - (cardWidth / 2f) / scale
+            val maxWX = centerWX + (cardWidth / 2f) / scale
+            val minWY = centerWY - (mapHeight / 2f) / scale
+            val maxWY = centerWY + (mapHeight / 2f) / scale
+
+            val minTileX = kotlin.math.floor(minWX / 256.0).toInt()
+            val maxTileX = kotlin.math.floor(maxWX / 256.0).toInt()
+            val minTileY = kotlin.math.floor(minWY / 256.0).toInt()
+            val maxTileY = kotlin.math.floor(maxWY / 256.0).toInt()
+
+            class TileResult(val tx: Int, val ty: Int, val bitmap: android.graphics.Bitmap?)
+            val executor = java.util.concurrent.Executors.newFixedThreadPool(6)
+            val tasks = mutableListOf<java.util.concurrent.Future<TileResult>>()
+
+            for (tx in minTileX..maxTileX) {
+                for (ty in minTileY..maxTileY) {
+                    tasks.add(executor.submit<TileResult> {
+                        val bmp = fetchMapTile(context, zoom, tx, ty)
+                        TileResult(tx, ty, bmp)
+                    })
                 }
+            }
 
-                // Render Map Tiles
-                val minWX = centerWX - (cardWidth / 2f) / scale
-                val maxWX = centerWX + (cardWidth / 2f) / scale
-                val minWY = centerWY - (mapHeight / 2f) / scale
-                val maxWY = centerWY + (mapHeight / 2f) / scale
-
-                val minTileX = kotlin.math.floor(minWX / 256.0).toInt()
-                val maxTileX = kotlin.math.floor(maxWX / 256.0).toInt()
-                val minTileY = kotlin.math.floor(minWY / 256.0).toInt()
-                val maxTileY = kotlin.math.floor(maxWY / 256.0).toInt()
-
-                var tilesRendered = 0
-                for (tx in minTileX..maxTileX) {
-                    for (ty in minTileY..maxTileY) {
-                        val tileLeft = centerX + (tx * 256.0 - centerWX) * scale
-                        val tileTop = centerY + (ty * 256.0 - centerWY) * scale
+            var tilesRendered = 0
+            for (task in tasks) {
+                try {
+                    val res = task.get(4, java.util.concurrent.TimeUnit.SECONDS)
+                    if (res.bitmap != null) {
+                        val tileLeft = centerX + (res.tx * 256.0 - centerWX) * scale
+                        val tileTop = centerY + (res.ty * 256.0 - centerWY) * scale
                         val tileRight = tileLeft + 256.0 * scale
                         val tileBottom = tileTop + 256.0 * scale
 
                         val destRect = android.graphics.RectF(tileLeft.toFloat(), tileTop.toFloat(), tileRight.toFloat(), tileBottom.toFloat())
-                        val tileBmp = fetchMapTile(context, zoom, tx, ty)
-                        if (tileBmp != null) {
-                            canvas.drawBitmap(tileBmp, null as android.graphics.Rect?, destRect, paint)
-                            tilesRendered++
-                        }
+                        canvas.drawBitmap(res.bitmap, null as android.graphics.Rect?, destRect, paint)
+                        tilesRendered++
                     }
+                } catch (e: Exception) {
+                    // continue
                 }
+            }
+            executor.shutdown()
 
-                // Vector grid fallback if offline
-                if (tilesRendered == 0) {
-                    strokePaint.color = android.graphics.Color.rgb(205, 215, 222)
-                    strokePaint.strokeWidth = 1f
-                    var gx = cardLeft + 30f
-                    while (gx < cardRight) {
-                        canvas.drawLine(gx, mapTopY, gx, mapBottomY, strokePaint)
-                        gx += 40f
-                    }
-                    var gy = mapTopY + 30f
-                    while (gy < mapBottomY) {
-                        canvas.drawLine(cardLeft, gy, cardRight, gy, strokePaint)
-                        gy += 40f
-                    }
+            // Vector grid fallback if offline
+            if (tilesRendered == 0) {
+                strokePaint.color = android.graphics.Color.rgb(205, 215, 222)
+                strokePaint.strokeWidth = 1f
+                var gx = cardLeft + 30f
+                while (gx < cardRight) {
+                    canvas.drawLine(gx, mapTopY, gx, mapBottomY, strokePaint)
+                    gx += 40f
                 }
+                var gy = mapTopY + 30f
+                while (gy < mapBottomY) {
+                    canvas.drawLine(cardLeft, gy, cardRight, gy, strokePaint)
+                    gy += 40f
+                }
+            }
 
-                // Draw GPS Polyline Path
+            // Draw GPS Polyline Path
+            if (effectiveTrackPoints.size >= 2) {
                 val routePath = android.graphics.Path()
-                val firstPt = trackPoints.first()
+                val firstPt = effectiveTrackPoints.first()
                 routePath.moveTo(toMapPdfX(firstPt.longitude), toMapPdfY(firstPt.latitude))
 
-                for (i in 1 until trackPoints.size) {
-                    val pt = trackPoints[i]
+                for (i in 1 until effectiveTrackPoints.size) {
+                    val pt = effectiveTrackPoints[i]
                     routePath.lineTo(toMapPdfX(pt.longitude), toMapPdfY(pt.latitude))
                 }
 
@@ -403,7 +436,7 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
 
                 // Waypoints
                 fillPaint.color = android.graphics.Color.rgb(21, 101, 192)
-                trackPoints.forEach { pt ->
+                effectiveTrackPoints.forEach { pt ->
                     canvas.drawCircle(toMapPdfX(pt.longitude), toMapPdfY(pt.latitude), 2.5f, fillPaint)
                 }
 
@@ -416,43 +449,43 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
                 canvas.drawCircle(startX, startY, 3f, fillPaint)
 
                 // End Marker (Red Circle)
-                val lastPt = trackPoints.last()
+                val lastPt = effectiveTrackPoints.last()
                 val endX = toMapPdfX(lastPt.longitude)
                 val endY = toMapPdfY(lastPt.latitude)
                 fillPaint.color = android.graphics.Color.rgb(198, 40, 40)
                 canvas.drawCircle(endX, endY, 7f, fillPaint)
                 fillPaint.color = android.graphics.Color.WHITE
                 canvas.drawCircle(endX, endY, 3f, fillPaint)
-
-                canvas.restore()
-
-                // Map Container Border
-                strokePaint.color = android.graphics.Color.rgb(26, 58, 90)
-                strokePaint.strokeWidth = 1.2f
-                canvas.drawRoundRect(mapRect, 10f, 10f, strokePaint)
-
-                // Map Info Badge (Pill in Top Right of Map)
-                val badgeText = if (tilesRendered > 0) "🗺️ Carte OSM • ${trackPoints.size} pts" else "📍 Zone GPS • ${trackPoints.size} pts"
-                paint.textSize = 9.5f
-                paint.isFakeBoldText = true
-                val badgeTextW = paint.measureText(badgeText)
-                val badgeW = badgeTextW + 14f
-                val badgeH = 18f
-                val badgeRect = android.graphics.RectF(
-                    cardRight - badgeW - 8f,
-                    mapTopY + 8f,
-                    cardRight - 8f,
-                    mapTopY + 8f + badgeH
-                )
-
-                fillPaint.color = android.graphics.Color.argb(230, 255, 255, 255)
-                canvas.drawRoundRect(badgeRect, 8f, 8f, fillPaint)
-
-                paint.color = android.graphics.Color.rgb(26, 58, 90)
-                canvas.drawText(badgeText, cardRight - badgeW, mapTopY + 21f, paint)
-
-                currentY = mapBottomY + 16f
             }
+
+            canvas.restore()
+
+            // Map Container Border
+            strokePaint.color = android.graphics.Color.rgb(26, 58, 90)
+            strokePaint.strokeWidth = 1.2f
+            canvas.drawRoundRect(mapRect, 10f, 10f, strokePaint)
+
+            // Map Info Badge (Pill in Top Right of Map)
+            val badgeText = if (tilesRendered > 0) "🗺️ Carte OSM • ${effectiveTrackPoints.size} pts" else "📍 Zone GPS • ${effectiveTrackPoints.size} pts"
+            paint.textSize = 9.5f
+            paint.isFakeBoldText = true
+            val badgeTextW = paint.measureText(badgeText)
+            val badgeW = badgeTextW + 14f
+            val badgeH = 18f
+            val badgeRect = android.graphics.RectF(
+                cardRight - badgeW - 8f,
+                mapTopY + 8f,
+                cardRight - 8f,
+                mapTopY + 8f + badgeH
+            )
+
+            fillPaint.color = android.graphics.Color.argb(230, 255, 255, 255)
+            canvas.drawRoundRect(badgeRect, 8f, 8f, fillPaint)
+
+            paint.color = android.graphics.Color.rgb(26, 58, 90)
+            canvas.drawText(badgeText, cardRight - badgeW, mapTopY + 21f, paint)
+
+            currentY = mapBottomY + 16f
 
             // FOOTER
             paint.color = android.graphics.Color.GRAY

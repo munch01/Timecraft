@@ -46,18 +46,20 @@ fun SettingsScreen(
     val biometryManager = remember { getBiometryManager() }
     val coroutineScope = rememberCoroutineScope()
     val currentUser = supabase.auth.currentSessionOrNull()?.user
-    val appVersion = "1.0.10"
+    val appVersion = "1.0.11"
 
     val currentLang = LanguageManager.currentLanguage
     val strings = getAppStrings(currentLang)
 
     var isBiometricEnabled by remember { mutableStateOf(settingsStorage.getBoolean("biometric_enabled", false)) }
+    var weeklyTargetHoursStr by remember { mutableStateOf(settingsStorage.getString("weekly_target_hours", "35")) }
 
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showEmailDialog by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showWeeklyTargetDialog by remember { mutableStateOf(false) }
     
     var newEmail by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
@@ -199,6 +201,27 @@ fun SettingsScreen(
                             title = "Mot de passe",
                             subtitle = "Changer votre mot de passe",
                             onClick = { showPasswordDialog = true }
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Contrat & Objectif de temps de travail",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f))
+                ) {
+                    Column {
+                        SettingsClickableItem(
+                            icon = Icons.Default.AccessTime,
+                            title = "Contrat hebdomadaire de référence",
+                            subtitle = "Objectif : $weeklyTargetHoursStr h / semaine (ex: 35h, 39h)",
+                            onClick = { showWeeklyTargetDialog = true }
                         )
                     }
                 }
@@ -573,6 +596,64 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showAboutDialog = false }) { Text("Fermer") }
+            }
+        )
+    }
+
+    if (showWeeklyTargetDialog) {
+        var inputVal by remember { mutableStateOf(weeklyTargetHoursStr) }
+        AlertDialog(
+            onDismissRequest = { showWeeklyTargetDialog = false },
+            icon = { Icon(Icons.Default.AccessTime, contentDescription = null) },
+            title = { Text("Contrat hebdomadaire") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Choisissez la durée hebdomadaire de contrat (servant de base au calcul des moyennes et des projections) :")
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("35", "37.5", "39", "40").forEach { preset ->
+                            FilterChip(
+                                selected = inputVal == preset,
+                                onClick = { inputVal = preset },
+                                label = { Text("${preset}h") }
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = inputVal,
+                        onValueChange = { inputVal = it },
+                        label = { Text("Nombre d'heures / semaine (ex: 39)") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val clean = inputVal.trim()
+                        if (clean.toDoubleOrNull() != null && clean.toDouble() > 0) {
+                            settingsStorage.setString("weekly_target_hours", clean)
+                            weeklyTargetHoursStr = clean
+                            platform.showToast("Contrat mis à jour : ${clean}h/semaine")
+                        }
+                        showWeeklyTargetDialog = false
+                    }
+                ) {
+                    Text("Valider")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWeeklyTargetDialog = false }) {
+                    Text("Annuler")
+                }
             }
         )
     }

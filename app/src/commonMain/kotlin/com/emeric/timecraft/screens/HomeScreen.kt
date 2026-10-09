@@ -23,10 +23,12 @@ import androidx.compose.ui.unit.sp
 import com.emeric.timecraft.getPdfExporter
 import com.emeric.timecraft.getPlatform
 import com.emeric.timecraft.getLocationTracker
+import com.emeric.timecraft.getSettingsStorage
 import com.emeric.timecraft.model.DayType
 import com.emeric.timecraft.utils.DateTimeUtils
 import com.emeric.timecraft.viewmodel.CalendarViewModel
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
@@ -252,6 +254,16 @@ fun ReportScreen(viewModel: CalendarViewModel) {
 
         if (reportMode == 0) {
             // RAPPORT MENSUEL
+            val settingsStorage = remember { getSettingsStorage() }
+            val targetWeeklyHours = remember {
+                settingsStorage.getString("weekly_target_hours", "35").toDoubleOrNull() ?: 35.0
+            }
+            val dailyTargetHours = targetWeeklyHours / 5.0
+            val today = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
+
+            val isCurrentMonth = currentMonth.year == today.year && currentMonth.month == today.month
+            val isPastMonth = (currentMonth.year < today.year) || (currentMonth.year == today.year && currentMonth.month < today.month)
+
             val monthDays = remember(viewModel.workDays, currentMonth) {
                 viewModel.workDays.values.filter {
                     it.date.month == currentMonth.month && it.date.year == currentMonth.year
@@ -283,16 +295,71 @@ fun ReportScreen(viewModel: CalendarViewModel) {
             val totalHoursWorked = monthDays.filter { it.type == DayType.WORKED }.sumOf { it.totalWorkedHours() }
             val totalExpenses = monthDays.flatMap { it.expenses }.sumOf { it.amount }
 
-            val weeksInMonth = daysInMonthCount / 7.0
-            val weeklyAvgHours = if (weeksInMonth > 0) totalHoursWorked / weeksInMonth else 0.0
-            val diffVs35h = weeklyAvgHours - 35.0
+            val monthDaysMap = remember(monthDays) { monthDays.associateBy { it.date } }
 
-            val formattedWeeklyAvg = formatH(weeklyAvgHours)
-            val diffText = when {
-                kotlin.math.abs(diffVs35h) < 0.1 -> "🎯 Ref 35h00 atteinte"
-                diffVs35h > 0 -> "📈 +${formatH(diffVs35h)} / sem"
-                else -> "📉 -${formatH(-diffVs35h)} / sem"
+            val allBusinessDaysInMonth = remember(monthDates) {
+                monthDates.filter { date ->
+                    date.dayOfWeek != DayOfWeek.SATURDAY && date.dayOfWeek != DayOfWeek.SUNDAY && !FrenchHolidays.isHoliday(date)
+                }
             }
+
+            val elapsedBusinessDays = remember(allBusinessDaysInMonth, today, isCurrentMonth, isPastMonth) {
+                if (isPastMonth) {
+                    allBusinessDaysInMonth
+                } else if (isCurrentMonth) {
+                    allBusinessDaysInMonth.filter { it <= today }
+                } else {
+                    emptyList()
+                }
+            }
+            val elapsedBusinessDaysCount = elapsedBusinessDays.size
+
+            val creditedDaysTypes = setOf(DayType.PAID_LEAVE, DayType.RTT, DayType.FAMILY_ABSENCE)
+
+            var elapsedCreditedDaysCount = 0
+            var remainingCreditedDaysCount = 0
+
+            allBusinessDaysInMonth.forEach { date ->
+                val dayObj = monthDaysMap[date]
+                if (dayObj != null && dayObj.type in creditedDaysTypes) {
+                    if (date <= today || isPastMonth) {
+                        elapsedCreditedDaysCount++
+                    } else {
+                        remainingCreditedDaysCount++
+                    }
+                }
+            }
+
+            val totalCreditedDaysCount = elapsedCreditedDaysCount + remainingCreditedDaysCount
+            val creditedHoursTotal = totalCreditedDaysCount * dailyTargetHours
+
+            val elapsedCreditedHours = elapsedCreditedDaysCount * dailyTargetHours
+            val totalEquivalentHoursElapsed = totalHoursWorked + elapsedCreditedHours
+
+            val weeksInMonth = daysInMonthCount / 7.0
+            val elapsedWeeks = if (isPastMonth) {
+                weeksInMonth
+            } else if (isCurrentMonth) {
+                kotlin.math.max(elapsedBusinessDaysCount / 5.0, 0.2)
+            } else {
+                0.2
+            }
+
+            val currentWeeklyAvg = if (isPastMonth || isCurrentMonth) {
+                totalEquivalentHoursElapsed / elapsedWeeks
+            } else {
+                0.0
+            }
+
+            val diffVsTarget = currentWeeklyAvg - targetWeeklyHours
+
+            // Projection
+            val remainingBusinessDaysCount = allBusinessDaysInMonth.count { it > today }
+            val remainingPlannedWorkDays = kotlin.math.max(0, remainingBusinessDaysCount - remainingCreditedDaysCount)
+            val projectedRemainingHours = remainingPlannedWorkDays * dailyTargetHours
+
+            val projectedMonthTotalHours = totalHoursWorked + creditedHoursTotal + projectedRemainingHours
+            val projectedWeeklyAvg = if (weeksInMonth > 0) projectedMonthTotalHours / weeksInMonth else 0.0
 
             val clientHoursMap = remember(monthDays) {
                 val map = mutableMapOf<String, Double>()
@@ -333,54 +400,100 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 }
             }
 
-            // 35h Weekly Average Card
+            // Weekly Average & Projection Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f)),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Moyenne Hebdomadaire",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1A3A5A)
-                        )
-                        Text(
-                            "Base mensuelle ($daysInMonthCount jours / ${(kotlin.math.round(weeksInMonth * 10.0) / 10.0)} sem.)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
-                        )
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Moyenne Hebdomadaire",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1A3A5A)
+                            )
+                            Text(
+                                if (isCurrentMonth) "Rythme actuel ($elapsedBusinessDaysCount j. ouvrés écoulés)" else "Base mensuelle (${(round(weeksInMonth * 10.0) / 10.0)} sem.)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                "${formatH(currentWeeklyAvg)} / sem",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF1A3A5A)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                color = if (diffVsTarget >= -0.1) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                val targetStr = formatH(targetWeeklyHours)
+                                val diffTextStr = when {
+                                    kotlin.math.abs(diffVsTarget) < 0.1 -> "🎯 Réf. $targetStr atteinte"
+                                    diffVsTarget > 0 -> "📈 +${formatH(diffVsTarget)} vs $targetStr"
+                                    else -> "📉 -${formatH(-diffVsTarget)} vs $targetStr"
+                                }
+                                Text(
+                                    diffTextStr,
+                                    color = if (diffVsTarget >= -0.1) Color(0xFF2E7D32) else Color(0xFFC62828),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
                     }
 
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            "$formattedWeeklyAvg / sem",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF1A3A5A)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Surface(
-                            color = if (diffVs35h >= -0.1) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
-                            shape = RoundedCornerShape(8.dp)
+                    if (isCurrentMonth) {
+                        HorizontalDivider(color = Color(0xFFE0E0E0))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.TrendingUp, contentDescription = null, tint = Color(0xFF1976D2), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "Projection fin de mois",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF1A3A5A)
+                                )
+                            }
                             Text(
-                                diffText,
-                                color = if (diffVs35h >= -0.1) Color(0xFF2E7D32) else Color(0xFFC62828),
+                                "${formatH(projectedMonthTotalHours)} total (~${formatH(projectedWeeklyAvg)}/sem)",
+                                style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                color = Color(0xFF1976D2)
                             )
                         }
                     }
+
+                    if (totalCreditedDaysCount > 0) {
+                        Text(
+                            "💡 Inclus $totalCreditedDaysCount j. de congés/RTT (${formatH(creditedHoursTotal)} équivalentes)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF2E7D32),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
+
+            val formattedWeeklyAvg = formatH(currentWeeklyAvg)
+            val targetStr = formatH(targetWeeklyHours)
 
             // Export PDF Button
             Button(
@@ -388,7 +501,8 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                     coroutineScope.launch(Dispatchers.IO) {
                         val metrics = listOf(
                             "Jours travaillés" to "$workedDaysCount jours (${formatH(totalHoursWorked)})",
-                            "Moyenne hebdo (mensuelle)" to "$formattedWeeklyAvg / sem (réf. 35h)",
+                            "Moyenne hebdo à ce jour" to "$formattedWeeklyAvg / sem (réf. $targetStr)",
+                            "Projection fin de mois" to "${formatH(projectedMonthTotalHours)} total (~${formatH(projectedWeeklyAvg)}/sem)",
                             "RTT pris" to "$rttDaysCount jours",
                             "Congés payés" to "$leaveDaysCount jours",
                             "Evénement familial" to "$familyDaysCount jours",

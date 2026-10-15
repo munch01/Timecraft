@@ -338,7 +338,7 @@ class AndroidPdfExporter(private val context: Context) : PdfExporter {
             val centerWY = (latToWorldY(padMinLat, zoom) + latToWorldY(padMaxLat, zoom)) / 2.0
 
             val rawSpanX = kotlin.math.abs(lonToWorldX(padMaxLon, zoom) - lonToWorldX(padMinLon, zoom))
-            val rawSpanY = kotlin.math.abs(latToWorldY(padMinLat, zoom) - latToWorldY(padMinLat, zoom))
+            val rawSpanY = kotlin.math.abs(latToWorldY(padMaxLat, zoom) - latToWorldY(padMinLat, zoom))
 
             val scale = kotlin.math.min(cardWidth / kotlin.math.max(rawSpanX, 1.0), mapHeight / kotlin.math.max(rawSpanY, 1.0))
 

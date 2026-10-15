@@ -203,16 +203,24 @@ fun ReportScreen(viewModel: CalendarViewModel) {
     val locationTracker = remember { getLocationTracker() }
     val trackHistory by locationTracker.trackHistory.collectAsState()
 
-    var reportMode by remember { mutableStateOf(0) } // 0 = Mensuel, 1 = Annuel
-    var selectedYear by remember { mutableStateOf(viewModel.currentMonth.year) }
-
-    val currentMonth = viewModel.currentMonth
-
     val formatH = { hrs: Double ->
         val h = hrs.toInt()
         val m = ((hrs - h) * 60).toInt()
         if (m == 0) "${h}h" else "${h}h${m.toString().padStart(2, '0')}"
     }
+
+    val settingsStorage = remember { getSettingsStorage() }
+    val targetWeeklyHours = remember {
+        settingsStorage.getString("weekly_target_hours", "35").toDoubleOrNull() ?: 35.0
+    }
+    val dailyTargetHours = targetWeeklyHours / 5.0
+    val targetStr = formatH(targetWeeklyHours)
+    val today = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
+
+    var reportMode by remember { mutableStateOf(0) } // 0 = Mensuel, 1 = Annuel
+    var selectedYear by remember { mutableStateOf(viewModel.currentMonth.year) }
+
+    val currentMonth = viewModel.currentMonth
 
     Column(
         modifier = Modifier
@@ -254,13 +262,6 @@ fun ReportScreen(viewModel: CalendarViewModel) {
 
         if (reportMode == 0) {
             // RAPPORT MENSUEL
-            val settingsStorage = remember { getSettingsStorage() }
-            val targetWeeklyHours = remember {
-                settingsStorage.getString("weekly_target_hours", "35").toDoubleOrNull() ?: 35.0
-            }
-            val dailyTargetHours = targetWeeklyHours / 5.0
-            val today = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
-
             val isCurrentMonth = currentMonth.year == today.year && currentMonth.month == today.month
             val isPastMonth = (currentMonth.year < today.year) || (currentMonth.year == today.year && currentMonth.month < today.month)
 
@@ -362,16 +363,29 @@ fun ReportScreen(viewModel: CalendarViewModel) {
             val projectedWeeklyAvg = if (weeksInMonth > 0) projectedMonthTotalHours / weeksInMonth else 0.0
 
             val clientHoursMap = remember(monthDays) {
-                val map = mutableMapOf<String, Double>()
+                val hoursMap = mutableMapOf<String, Double>()
+                val displayNamesMap = mutableMapOf<String, String>()
+
                 monthDays.filter { it.type == DayType.WORKED }.forEach { day ->
                     day.getEffectiveSchedules().forEach { schedule ->
-                        if (schedule.clientName.isNotBlank()) {
+                        val cleanName = schedule.clientName.trim()
+                        if (cleanName.isNotBlank()) {
+                            val key = cleanName.lowercase()
                             val hrs = schedule.calculateHours()
-                            map[schedule.clientName] = (map[schedule.clientName] ?: 0.0) + hrs
+                            hoursMap[key] = (hoursMap[key] ?: 0.0) + hrs
+                            if (!displayNamesMap.containsKey(key) || cleanName[0].isUpperCase()) {
+                                displayNamesMap[key] = cleanName
+                            }
                         }
                     }
                 }
-                map
+
+                val resultMap = mutableMapOf<String, Double>()
+                hoursMap.forEach { (key, hrs) ->
+                    val displayName = displayNamesMap[key] ?: key
+                    resultMap[displayName] = (resultMap[displayName] ?: 0.0) + hrs
+                }
+                resultMap
             }
 
             // Top Month Selector Card
@@ -644,23 +658,50 @@ fun ReportScreen(viewModel: CalendarViewModel) {
                 }
             }
 
+            val yearClientHoursMap = remember(yearDays) {
+                val hoursMap = mutableMapOf<String, Double>()
+                val displayNamesMap = mutableMapOf<String, String>()
+
+                yearDays.filter { it.type == DayType.WORKED }.forEach { day ->
+                    day.getEffectiveSchedules().forEach { schedule ->
+                        val cleanName = schedule.clientName.trim()
+                        if (cleanName.isNotBlank()) {
+                            val key = cleanName.lowercase()
+                            val hrs = schedule.calculateHours()
+                            hoursMap[key] = (hoursMap[key] ?: 0.0) + hrs
+                            if (!displayNamesMap.containsKey(key) || cleanName[0].isUpperCase()) {
+                                displayNamesMap[key] = cleanName
+                            }
+                        }
+                    }
+                }
+
+                val resultMap = mutableMapOf<String, Double>()
+                hoursMap.forEach { (key, hrs) ->
+                    val displayName = displayNamesMap[key] ?: key
+                    resultMap[displayName] = (resultMap[displayName] ?: 0.0) + hrs
+                }
+                resultMap
+            }
+
             // Export PDF Button Annuel
             Button(
                 onClick = {
                     coroutineScope.launch(Dispatchers.IO) {
                         val metrics = listOf(
                             "Total Jours travaillés ($selectedYear)" to "$totalWorkedDaysYear jours (${formatH(totalHoursYear)})",
-                            "Moyenne hebdo sur l'année" to "${formatH(yearlyWeeklyAvg)} / sem (réf. 35h)",
+                            "Moyenne hebdo sur l'année" to "${formatH(yearlyWeeklyAvg)} / sem (réf. $targetStr)",
                             "Total RTT pris" to "$totalRttYear jours",
                             "Total Congés payés" to "$totalLeaveYear jours",
                             "Distance GPS / Déplacement" to "${(round(totalYearDistanceKm * 10.0) / 10.0)} km",
                             "Total des frais" to "$totalExpensesYear €"
                         )
+                        val clientBreakdown = yearClientHoursMap.map { (client, hrs) -> client to formatH(hrs) }
                         pdfExporter.exportReportPdf(
                             title = "Rapport Annuel - Année $selectedYear",
                             subtitle = "Généré par TimeCraft - Bilan annuel",
                             metrics = metrics,
-                            clientBreakdown = emptyList(),
+                            clientBreakdown = clientBreakdown,
                             trackPoints = yearGpsPoints
                         )
                     }

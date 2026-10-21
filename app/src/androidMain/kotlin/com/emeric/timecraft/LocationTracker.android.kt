@@ -147,17 +147,19 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
     }
 
     override fun onLocationChanged(location: Location) {
-        // 1. Accuracy Filter: Ignore imprecise locations (> 25m accuracy radius)
-        if (location.hasAccuracy() && location.accuracy > 25.0f) {
-            return
-        }
-
-        // 2. Extra strict accuracy check for network/passive provider
-        if (location.provider == LocationManager.NETWORK_PROVIDER && location.hasAccuracy() && location.accuracy > 15.0f) {
-            return
-        }
-
         val speedKmh = if (location.hasSpeed()) location.speed * 3.6f else 0f
+
+        // 1. Accuracy Filter: Allow up to 50m when moving (e.g. inside train carriages) and 30m when static
+        val maxAllowedAccuracy = if (speedKmh > 10.0f) 50.0f else 30.0f
+        if (location.hasAccuracy() && location.accuracy > maxAllowedAccuracy) {
+            return
+        }
+
+        // 2. Network provider accuracy check
+        if (location.provider == LocationManager.NETWORK_PROVIDER && location.hasAccuracy() && location.accuracy > 30.0f) {
+            return
+        }
+
         val point = LocationPoint(
             latitude = location.latitude,
             longitude = location.longitude,
@@ -188,20 +190,19 @@ class AndroidLocationTracker(private val context: Context) : LocationTracker, Lo
         val timeDeltaSec = (location.time - lastPoint.timestamp) / 1000.0
 
         // 3. Outlier / Teleportation Jump Filter
-        // Ignore impossible speed spikes (> 140 km/h or > 120m jump in < 3s)
+        // Support high-speed trains (TGV / TER / Intercités) up to 360 km/h
         if (timeDeltaSec > 0) {
             val impliedSpeedKmh = (distMeters / timeDeltaSec) * 3.6
-            if (impliedSpeedKmh > 140.0) {
+            if (impliedSpeedKmh > 360.0) {
                 return
             }
         }
-        if (timeDeltaSec < 3.0 && distMeters > 120.0) {
+        if (timeDeltaSec < 2.0 && distMeters > 200.0) {
             return
         }
 
-        // 4. Anti-Drift Stationary Filter (office / desk / red light)
-        // Require a higher movement threshold if speed is low or static (< 3 km/h)
-        val minRequiredDistance = if (speedKmh < 3.0f) 15.0 else 8.0
+        // 4. Anti-Drift Stationary Filter
+        val minRequiredDistance = if (speedKmh < 3.0f) 12.0 else 5.0
 
         if (distMeters >= minRequiredDistance) {
             val newList = currentList + point

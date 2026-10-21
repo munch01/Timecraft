@@ -19,39 +19,45 @@ private fun latToWorldY(lat: Double, zoom: Int): Double {
 private fun fetchMapTile(context: Context, zoom: Int, x: Int, y: Int): android.graphics.Bitmap? {
     val cacheDir = java.io.File(context.cacheDir, "map_tiles").apply { mkdirs() }
     val tileFile = java.io.File(cacheDir, "tile_${zoom}_${x}_${y}.png")
-    if (tileFile.exists() && tileFile.length() > 0) {
+    if (tileFile.exists() && tileFile.length() > 500) {
         try {
-            return android.graphics.BitmapFactory.decodeFile(tileFile.absolutePath)
+            val bmp = android.graphics.BitmapFactory.decodeFile(tileFile.absolutePath)
+            if (bmp != null) return bmp
         } catch (e: Exception) {
             tileFile.delete()
         }
     }
 
     val urls = listOf(
+        "https://tile.openstreetmap.org/$zoom/$x/$y.png",
+        "https://a.tile.openstreetmap.org/$zoom/$x/$y.png",
+        "https://b.tile.openstreetmap.org/$zoom/$x/$y.png",
+        "https://c.tile.openstreetmap.org/$zoom/$x/$y.png",
         "https://basemaps.cartocdn.com/rastertiles/voyager/$zoom/$x/$y.png",
-        "https://a.basemaps.cartocdn.com/light_all/$zoom/$x/$y.png",
-        "https://b.basemaps.cartocdn.com/light_all/$zoom/$x/$y.png",
-        "https://tile.openstreetmap.org/$zoom/$x/$y.png"
+        "https://a.basemaps.cartocdn.com/light_all/$zoom/$x/$y.png"
     )
 
     for (urlStr in urls) {
         try {
             val url = java.net.URL(urlStr)
-            val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 4000
-            conn.readTimeout = 4000
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0 TimeCraft/1.0")
-            conn.setRequestProperty("Accept", "image/png,image/*")
+            val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = 4000
+                readTimeout = 4000
+                instanceFollowRedirects = true
+                doInput = true
+                setRequestProperty("User-Agent", "TimeCraft-App/1.0 (Mobile Android; contact@timecraft.app)")
+                setRequestProperty("Accept", "image/png,image/*")
+            }
             if (conn.responseCode == 200) {
-                conn.inputStream.use { input ->
-                    tileFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
+                val bytes = conn.inputStream.use { it.readBytes() }
+                if (bytes.size > 500 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte()) {
+                    tileFile.writeBytes(bytes)
+                    val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    if (bmp != null) return bmp
                 }
-                return android.graphics.BitmapFactory.decodeFile(tileFile.absolutePath)
             }
         } catch (e: Exception) {
-            // continue
+            e.printStackTrace()
         }
     }
     return null

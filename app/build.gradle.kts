@@ -95,8 +95,8 @@ android {
         applicationId = "com.emeric.timecraft"
         minSdk = 26
         targetSdk = 37
-        versionCode = 13
-        versionName = "1.0.13"
+        versionCode = 14
+        versionName = "1.0.14"
     }
 
     val localProperties = Properties()
@@ -163,7 +163,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Deb)
             packageName = "TimeCraft"
-            packageVersion = "1.0.13"
+            packageVersion = "1.0.14"
         }
     }
 }
